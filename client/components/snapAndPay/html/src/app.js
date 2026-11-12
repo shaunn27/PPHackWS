@@ -419,6 +419,7 @@ async function handleApprove({ orderId }) {
  * ###################################################################### */
 
 function renderReceipt({ orderId, payment, captureDetails }) {
+  clearAlert();
   const amount = captureDetails?.amount
     ? `${captureDetails.amount.value} ${captureDetails.amount.currencyCode}`
     : `${payment.amount} ${payment.currencyCode}`;

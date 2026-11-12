@@ -107,6 +107,7 @@ function render() {
 }
 
 function showPaid() {
+  clearAlert();
   $("#loading").hidden = true;
   $("#share-section").hidden = true;
   $("#paid-section").hidden = false;
@@ -151,6 +152,8 @@ async function onPayPalWebSdkLoaded() {
         }
       },
       onCancel() {
+        // a late cancel event must not contradict a share that's already paid
+        if (view.status === "paid") return;
         renderAlert({
           type: "warning",
           message: "Payment cancelled. Nothing was charged.",
@@ -223,4 +226,8 @@ function renderAlert({ type, message }) {
   alertElement.setAttribute("type", type);
   alertElement.innerText = message;
   alertElement.hidden = false;
+}
+
+function clearAlert() {
+  $("alert-component").hidden = true;
 }

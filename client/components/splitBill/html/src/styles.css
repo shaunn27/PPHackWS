@@ -1,3 +1,8 @@
+/* Elements with the hidden attribute stay hidden, even when a class sets display */
+[hidden] {
+  display: none !important;
+}
+
 :root {
   --brand: #003087;
   --brand-light: #0070e0;
