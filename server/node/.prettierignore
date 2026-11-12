@@ -1,2 +1,5 @@
 dist
 coverage
+
+# Split the Bill local demo storage
+data/

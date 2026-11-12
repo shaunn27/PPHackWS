@@ -22,6 +22,7 @@ It's tedious, error-prone and awkward, so people round, guess, or never get paid
 2. **Check.** The lines prefill an editable receipt. The page shows live whether items + charges − discounts add up to the total, and blocks splitting until they do.
 3. **Split.** Add your friends' names and tap who had each item. Tap several people for something you shared, or switch to an equal split. Everyone's share updates live, calculated on the server.
 4. **Collect.** Each friend gets a pay link to copy, share on WhatsApp or open. The link shows their items and their share of tax and discounts, and has a PayPal button. The money goes **directly to the host's PayPal account**. The host's page updates by itself as each friend pays: "$21.00 of $48.28 collected".
+5. **Paid another way?** Not everyone pays back with PayPal. A friend who paid in cash, by bank transfer or with another app taps **"I've paid"** on their link, picks how, and can add a note. The host sees **"says paid"** and taps **Confirm received** or **Not received**. A claim never counts as collected until the host confirms it. The host can also **Mark as paid** someone who handed over cash without opening their link. The total shows where the money came from: "$32.00 collected ($21.00 via PayPal, $11.00 confirmed by you)".
 
 ```
  Host's browser                    Node.js server                         External
@@ -36,7 +37,13 @@ It's tedious, error-prone and awkward, so people round, guess, or never get paid
            ─────► GET  /api/splits/:id/pay/:token        their share only
  PayPal button ─► POST …/pay/:token/create-order ───► Orders v2: payee = host, amount = STORED share ─► PayPal
  approve in PayPal popup
-           ─────► POST …/pay/:token/capture ─────────► capture, verify amount ─► mark share PAID
+           ─────► POST …/pay/:token/capture ─────────► capture, verify amount ─► mark share PAID (via PayPal)
+ or "I've paid" ► POST …/pay/:token/claim             mark share CLAIMED (not counted yet)
+
+ Host's browser
+ Confirm / Not received / Mark as paid
+           ─────► POST /api/splits/:id/participants/:pid/confirm|reject  (host token)
+                                                     CLAIMED/PENDING ─► PAID (another way), or back to PENDING
 ```
 
 ## The calculation engine
@@ -68,6 +75,8 @@ Worked example from the sample receipt ($75.79 total: $70.00 of items, a $5.00 p
 | Paying twice | A paid share can't create another order (409). A retried capture of the same order is recognised and isn't charged again. |
 | Capturing someone else's order through your link | The server only captures the order it created for that pay link. |
 | The captured amount differs from the share | The share is **not** marked paid, and the friend isn't told it worked. |
+| A friend says they paid but didn't | "I've paid" only marks the share as **claimed**. It isn't counted as collected until the host confirms it, and the host can answer "Not received". |
+| A friend confirms their own claim | Confirming needs the host token. A pay link's token is rejected (403). |
 | Prompt injection printed on the receipt | Same rule as Snap & Pay: text in the image is data, never instructions, and anything suspicious is reported as a warning. |
 
 ## Run it
@@ -96,6 +105,7 @@ Split sessions are saved to `server/node/data/splits.json` (gitignored), so they
 ## Limitations
 
 - **Storage is a JSON file**, not a database, and there are no user accounts. Anyone with the host link can see the dashboard.
+- **Payments made outside PayPal are only as reliable as the host's confirmation.** The app records who confirmed what and when, but can't verify cash or bank transfers.
 - **No push notifications or SMS.** The host shares links by copy or WhatsApp, and "reminders" mean sharing again.
 - **Splits are itemized or equal.** Custom amounts and percentages aren't built yet.
 - **Friends pay with PayPal.** A friend without PayPal can use PayPal's guest card checkout where it's available.

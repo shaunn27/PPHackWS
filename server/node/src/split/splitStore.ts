@@ -14,7 +14,27 @@ import type { ReviewedReceipt } from "./receipt";
  * memory only (used by the tests).
  */
 
-export type ParticipantStatus = "host" | "pending" | "paid";
+/**
+ * host:    the host's own share, or a share of 0.00 (nothing to collect)
+ * pending: waiting for this friend to pay
+ * claimed: the friend says they paid another way (cash, bank transfer...);
+ *          NOT counted as paid until the host confirms it
+ * paid:    settled, either by a verified PayPal capture or confirmed by the host
+ */
+export type ParticipantStatus = "host" | "pending" | "claimed" | "paid";
+
+export const CLAIM_METHODS = [
+  "cash",
+  "bank_transfer",
+  "other_app",
+  "other",
+] as const;
+
+export type PaymentClaim = {
+  method: (typeof CLAIM_METHODS)[number];
+  note?: string;
+  claimedAt: string;
+};
 
 export type StoredParticipant = {
   id: string;
@@ -27,6 +47,14 @@ export type StoredParticipant = {
   orderId?: string;
   captureId?: string;
   paidAt?: string;
+  /** how a paid share was settled */
+  paidVia?: "paypal" | "other";
+  /** the friend's "I've paid another way" claim, while it awaits the host */
+  claim?: PaymentClaim;
+  /** when the host confirmed a payment made outside PayPal */
+  confirmedAt?: string;
+  /** when the host last said a claimed payment hadn't arrived */
+  claimRejectedAt?: string;
 };
 
 export type StoredSplit = {
@@ -116,8 +144,19 @@ export function findParticipantByToken(split: StoredSplit, payToken: string) {
 export function updateParticipant(
   splitId: string,
   participantId: string,
+  // a key set to undefined clears that field (JSON drops it when saving)
   changes: Partial<
-    Pick<StoredParticipant, "status" | "orderId" | "captureId" | "paidAt">
+    Pick<
+      StoredParticipant,
+      | "status"
+      | "orderId"
+      | "captureId"
+      | "paidAt"
+      | "paidVia"
+      | "claim"
+      | "confirmedAt"
+      | "claimRejectedAt"
+    >
   >,
 ) {
   const split = getSplit(splitId);

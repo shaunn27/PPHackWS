@@ -29,6 +29,63 @@
         Tax, service and discounts are split in proportion to what you had.
       </p>
 
+      <!-- the host said a claimed payment hasn't arrived -->
+      <p id="rejected-notice" class="claim-rejected" role="status" hidden>
+        <span id="rejected-host"></span> hasn't received your payment yet. Check
+        with them, or pay with PayPal below.
+      </p>
+
+      <!-- waiting for the host to confirm a payment made another way -->
+      <div id="claimed-notice" class="claim-box" role="status" hidden>
+        <strong
+          >⏳ Waiting for <span id="claimed-host"></span> to confirm</strong
+        >
+        <div id="claimed-detail"></div>
+        <div class="muted">
+          This page updates when they do. Changed your mind? You can still pay
+          with PayPal below.
+        </div>
+      </div>
+
+      <details id="other-way" class="other-way">
+        <summary>Paid another way? (cash, bank transfer…)</summary>
+        <form id="claim-form">
+          <fieldset class="method-choice">
+            <legend>How did you pay?</legend>
+            <label
+              ><input type="radio" name="method" value="cash" checked />
+              Cash</label
+            >
+            <label
+              ><input type="radio" name="method" value="bank_transfer" /> Bank
+              transfer</label
+            >
+            <label
+              ><input type="radio" name="method" value="other_app" /> Another
+              app</label
+            >
+            <label
+              ><input type="radio" name="method" value="other" /> Other</label
+            >
+          </fieldset>
+          <label class="field"
+            >Note (optional)
+            <input
+              id="claim-note"
+              maxlength="140"
+              placeholder="e.g. Transferred at 8pm"
+            />
+          </label>
+          <button type="submit" id="claim-button" class="primary-button">
+            I've paid
+          </button>
+          <p class="muted claim-help">
+            <span id="claim-host"></span> will check and confirm it. Until then
+            it isn't counted as paid.
+          </p>
+        </form>
+      </details>
+
       <div id="pay-area" class="pay-container">
         <paypal-button id="paypal-button" type="pay" hidden></paypal-button>
         <p class="muted pay-note">

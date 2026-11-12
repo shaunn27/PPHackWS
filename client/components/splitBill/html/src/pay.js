@@ -5,7 +5,19 @@
  * a PayPal button. The server creates the order for the STORED share (the
  * browser never sends an amount), with the host's PayPal account as payee,
  * and marks the share paid as soon as PayPal captures it.
+ *
+ * A friend who paid another way (cash, bank transfer...) can say "I've
+ * paid" instead. That only flags the share for the host: it counts as paid
+ * once the host confirms it, and this page updates when they do.
  */
+
+const CLAIM_POLL_INTERVAL_MS = 5000;
+const METHOD_LABELS = {
+  cash: "cash",
+  bank_transfer: "bank transfer",
+  other_app: "another app",
+  other: "another way",
+};
 
 const params = new URLSearchParams(location.search);
 const splitId = params.get("split");
@@ -15,6 +27,7 @@ const apiBase = `/api/splits/${encodeURIComponent(splitId ?? "")}/pay/${encodeUR
 const $ = (selector) => document.querySelector(selector);
 
 let view;
+let claimPollTimer;
 const viewReady = loadView();
 
 function money(amount, currencyCode) {
@@ -104,6 +117,71 @@ function render() {
       return row;
     }),
   );
+  updateClaimUi();
+}
+
+/** Shows the "Paid another way?" form, the waiting card, or the rejection notice. */
+function updateClaimUi() {
+  const claimed = view.status === "claimed";
+  for (const selector of ["#rejected-host", "#claimed-host", "#claim-host"]) {
+    $(selector).textContent = view.hostName;
+  }
+
+  $("#claimed-notice").hidden = !claimed;
+  $("#other-way").hidden = claimed;
+  $("#rejected-notice").hidden = claimed || !view.claimRejectedAt;
+
+  if (claimed) {
+    const method = METHOD_LABELS[view.claim?.method] ?? "another way";
+    $("#claimed-detail").textContent = view.claim?.note
+      ? `You said you paid by ${method}: “${view.claim.note}”`
+      : `You said you paid by ${method}.`;
+    startClaimPolling();
+  } else {
+    stopClaimPolling();
+  }
+}
+
+$("#claim-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const button = $("#claim-button");
+  button.disabled = true;
+  try {
+    const method = new FormData(event.target).get("method");
+    const note = $("#claim-note").value.trim();
+    await postJson(`${apiBase}/claim`, { method, ...(note && { note }) });
+    view = await getJson(apiBase);
+    $("#other-way").open = false;
+    clearAlert();
+    updateClaimUi();
+  } catch (error) {
+    renderAlert({ type: "danger", message: error.message });
+  } finally {
+    button.disabled = false;
+  }
+});
+
+/** While waiting for the host, check every few seconds whether they confirmed. */
+function startClaimPolling() {
+  if (claimPollTimer) return;
+  claimPollTimer = setInterval(async () => {
+    try {
+      view = await getJson(apiBase);
+      if (view.status === "paid") {
+        stopClaimPolling();
+        showPaid();
+      } else {
+        updateClaimUi();
+      }
+    } catch (error) {
+      console.error(error);
+    }
+  }, CLAIM_POLL_INTERVAL_MS);
+}
+
+function stopClaimPolling() {
+  clearInterval(claimPollTimer);
+  claimPollTimer = undefined;
 }
 
 function showPaid() {
@@ -112,8 +190,16 @@ function showPaid() {
   $("#share-section").hidden = true;
   $("#paid-section").hidden = false;
   $("#paid-title").textContent = "You're all square ✓";
-  $("#paid-detail").textContent =
-    `You paid ${view.hostName} back ${money(view.share.total, view.currencyCode)} for ${view.merchantName}.`;
+  const amount = money(view.share.total, view.currencyCode);
+  if (view.paidVia === "other") {
+    const method = METHOD_LABELS[view.claim?.method];
+    $("#paid-detail").textContent = method
+      ? `${view.hostName} confirmed your ${method} payment of ${amount} for ${view.merchantName}.`
+      : `${view.hostName} marked your ${amount} share of ${view.merchantName} as paid.`;
+  } else {
+    $("#paid-detail").textContent =
+      `You paid ${view.hostName} back ${amount} for ${view.merchantName} with PayPal.`;
+  }
 }
 
 function showError(message) {
@@ -127,7 +213,8 @@ function showError(message) {
 
 async function onPayPalWebSdkLoaded() {
   await viewReady;
-  if (!view || view.status !== "pending") return;
+  // a friend who said "I've paid" can still change their mind and use PayPal
+  if (!view || (view.status !== "pending" && view.status !== "claimed")) return;
 
   try {
     const { clientId } = await getJson(
@@ -144,7 +231,9 @@ async function onPayPalWebSdkLoaded() {
         try {
           const result = await postJson(`${apiBase}/capture`, { orderId });
           if (result.status === "COMPLETED") {
+            stopClaimPolling();
             view.status = "paid";
+            view.paidVia = "paypal";
             showPaid();
           }
         } catch (error) {

@@ -11,6 +11,9 @@ import {
   getPayViewRouteHandler,
   createSplitOrderRouteHandler,
   captureSplitOrderRouteHandler,
+  claimPaymentRouteHandler,
+  confirmPaymentRouteHandler,
+  rejectClaimRouteHandler,
 } from "./splitRouteHandler";
 
 import {
@@ -113,6 +116,17 @@ router.post(
 router.post(
   "/api/splits/:id/pay/:payToken/capture",
   captureSplitOrderRouteHandler,
+);
+
+// "I've paid another way": the friend claims, the host confirms or rejects
+router.post("/api/splits/:id/pay/:payToken/claim", claimPaymentRouteHandler);
+router.post(
+  "/api/splits/:id/participants/:participantId/confirm",
+  confirmPaymentRouteHandler,
+);
+router.post(
+  "/api/splits/:id/participants/:participantId/reject",
+  rejectClaimRouteHandler,
 );
 
 router.get("/paypal-api/checkout/orders/:orderId", getOrderRouteHandler);

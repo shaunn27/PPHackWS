@@ -4,6 +4,9 @@ import express, { type Express } from "express";
 
 import {
   captureSplitOrderRouteHandler,
+  claimPaymentRouteHandler,
+  confirmPaymentRouteHandler,
+  rejectClaimRouteHandler,
   createSplitOrderRouteHandler,
   createSplitRouteHandler,
   getPayViewRouteHandler,
@@ -30,6 +33,21 @@ vi.mock("@paypal/paypal-server-sdk", async () => {
     ),
   };
 });
+
+type ParticipantView = {
+  name: string;
+  status: string;
+  paidVia?: string;
+  claim?: { method: string; note?: string };
+};
+
+function person(body: { participants: ParticipantView[] }, name: string) {
+  const found = body.participants.find(
+    (participant) => participant.name === name,
+  );
+  if (!found) throw new Error(`${name} not found`);
+  return found;
+}
 
 function completedCapture(value: string, currencyCode = "USD") {
   return {
@@ -104,8 +122,23 @@ describe("split routes", () => {
       "/api/splits/:id/pay/:payToken/capture",
       captureSplitOrderRouteHandler,
     );
+    app.post("/api/splits/:id/pay/:payToken/claim", claimPaymentRouteHandler);
+    app.post(
+      "/api/splits/:id/participants/:participantId/confirm",
+      confirmPaymentRouteHandler,
+    );
+    app.post(
+      "/api/splits/:id/participants/:participantId/reject",
+      rejectClaimRouteHandler,
+    );
     app.use(errorMiddleware);
   });
+
+  function dashboard(split: { id: string; hostToken: string }) {
+    return request(app).get(
+      `/api/splits/${split.id}?hostToken=${split.hostToken}`,
+    );
+  }
 
   async function createTestSplit() {
     const response = await request(app).post("/api/splits").send(splitRequest);
@@ -309,5 +342,168 @@ describe("split routes", () => {
       `/api/splits/${split.id}/pay/${payToken}`,
     );
     expect(view.body.status).toBe("pending");
+  });
+
+  describe("paid another way", () => {
+    test("a claim is shown to the host but NOT counted as collected", async () => {
+      const { split, payToken } = await createTestSplit();
+
+      const claim = await request(app)
+        .post(`/api/splits/${split.id}/pay/${payToken}/claim`)
+        .send({ method: "bank_transfer", note: "Sent at 8pm" });
+      expect(claim.status).toBe(200);
+
+      const view = await dashboard(split);
+      expect(person(view.body, "Ben")).toMatchObject({
+        status: "claimed",
+        claim: { method: "bank_transfer", note: "Sent at 8pm" },
+      });
+      expect(view.body.collected).toBe("0.00");
+    });
+
+    test("the host confirms a claim, which then counts as paid another way", async () => {
+      const { split, ben, payToken } = await createTestSplit();
+      await request(app)
+        .post(`/api/splits/${split.id}/pay/${payToken}/claim`)
+        .send({ method: "cash" });
+
+      const confirm = await request(app)
+        .post(`/api/splits/${split.id}/participants/p1/confirm`)
+        .send({ hostToken: split.hostToken });
+
+      expect(confirm.status).toBe(200);
+      expect(person(confirm.body, "Ben")).toMatchObject({
+        status: "paid",
+        paidVia: "other",
+      });
+      expect(confirm.body.collected).toBe(ben.total);
+      expect(confirm.body.collectedOther).toBe(ben.total);
+      expect(confirm.body.collectedViaPayPal).toBe("0.00");
+
+      const payView = await request(app).get(
+        `/api/splits/${split.id}/pay/${payToken}`,
+      );
+      expect(payView.body).toMatchObject({ status: "paid", paidVia: "other" });
+    });
+
+    test("only the host token can confirm", async () => {
+      const { split, payToken } = await createTestSplit();
+      await request(app)
+        .post(`/api/splits/${split.id}/pay/${payToken}/claim`)
+        .send({ method: "cash" });
+
+      const response = await request(app)
+        .post(`/api/splits/${split.id}/participants/p1/confirm`)
+        .send({ hostToken: payToken });
+
+      expect(response.status).toBe(403);
+      const view = await dashboard(split);
+      expect(person(view.body, "Ben").status).toBe("claimed");
+    });
+
+    test("the host can mark someone paid without a claim (cash in person)", async () => {
+      const { split } = await createTestSplit();
+
+      const response = await request(app)
+        .post(`/api/splits/${split.id}/participants/p2/confirm`)
+        .send({ hostToken: split.hostToken });
+
+      expect(response.status).toBe(200);
+      expect(person(response.body, "Cara")).toMatchObject({
+        status: "paid",
+        paidVia: "other",
+      });
+    });
+
+    test("'not received' sends a claim back to waiting and tells the friend", async () => {
+      const { split, payToken } = await createTestSplit();
+      await request(app)
+        .post(`/api/splits/${split.id}/pay/${payToken}/claim`)
+        .send({ method: "other_app" });
+
+      const reject = await request(app)
+        .post(`/api/splits/${split.id}/participants/p1/reject`)
+        .send({ hostToken: split.hostToken });
+      expect(reject.status).toBe(200);
+      expect(person(reject.body, "Ben").status).toBe("pending");
+      expect(person(reject.body, "Ben").claim).toBeUndefined();
+
+      const payView = await request(app).get(
+        `/api/splits/${split.id}/pay/${payToken}`,
+      );
+      expect(payView.body.status).toBe("pending");
+      expect(payView.body.claimRejectedAt).toEqual(expect.any(String));
+
+      // and they can claim again
+      const again = await request(app)
+        .post(`/api/splits/${split.id}/pay/${payToken}/claim`)
+        .send({ method: "cash" });
+      expect(again.status).toBe(200);
+    });
+
+    test("can't reject a share nobody claimed", async () => {
+      const { split } = await createTestSplit();
+      const response = await request(app)
+        .post(`/api/splits/${split.id}/participants/p1/reject`)
+        .send({ hostToken: split.hostToken });
+      expect(response.status).toBe(400);
+    });
+
+    test("a friend who claimed can still pay with PayPal instead", async () => {
+      const { split, ben, payToken } = await createTestSplit();
+      await request(app)
+        .post(`/api/splits/${split.id}/pay/${payToken}/claim`)
+        .send({ method: "cash" });
+
+      const order = await request(app).post(
+        `/api/splits/${split.id}/pay/${payToken}/create-order`,
+      );
+      expect(order.status).toBe(201);
+      captureOrderMock.mockResolvedValueOnce(completedCapture(ben.total));
+      await request(app)
+        .post(`/api/splits/${split.id}/pay/${payToken}/capture`)
+        .send({ orderId: "ORDER-1" });
+
+      const view = await dashboard(split);
+      expect(person(view.body, "Ben")).toMatchObject({
+        status: "paid",
+        paidVia: "paypal",
+      });
+      expect(person(view.body, "Ben").claim).toBeUndefined();
+      expect(view.body.collectedViaPayPal).toBe(ben.total);
+    });
+
+    test("rejects duplicate claims, claims on paid shares and bad input", async () => {
+      const { split, payToken } = await createTestSplit();
+      const claimStatus = async (body: object) => {
+        const response = await request(app)
+          .post(`/api/splits/${split.id}/pay/${payToken}/claim`)
+          .send(body);
+        return response.status;
+      };
+
+      expect(await claimStatus({ method: "gold bars" })).toBe(400);
+      expect(await claimStatus({ method: "cash", note: "x".repeat(141) })).toBe(
+        400,
+      );
+      expect(await claimStatus({ method: "cash" })).toBe(200);
+      expect(await claimStatus({ method: "cash" })).toBe(409);
+
+      await request(app)
+        .post(`/api/splits/${split.id}/participants/p1/confirm`)
+        .send({ hostToken: split.hostToken });
+      const confirmAgain = await request(app)
+        .post(`/api/splits/${split.id}/participants/p1/confirm`)
+        .send({ hostToken: split.hostToken });
+      expect(confirmAgain.status).toBe(409);
+    });
+
+    test("the host's own share can't be claimed or confirmed", async () => {
+      const { split } = await createTestSplit();
+      const response = await request(app)
+        .post(`/api/splits/${split.id}/participants/p0/confirm`)
+        .send({ hostToken: split.hostToken });
+      expect(response.status).toBe(400);
+    });
   });
 });

@@ -25,6 +25,8 @@ const state = {
   previewTimer: undefined,
   previewOk: false,
   pollTimer: undefined,
+  hostToken: undefined,
+  hostActionInFlight: false,
 };
 
 const $ = (selector) => document.querySelector(selector);
@@ -666,13 +668,24 @@ $("#create-split").addEventListener("click", async () => {
  * Step 4: collect
  * ###################################################################### */
 
+const CLAIM_METHOD_LABELS = {
+  cash: "cash",
+  bank_transfer: "bank transfer",
+  other_app: "another app",
+  other: "another way",
+};
+
 function showDashboard(split) {
   showStep("collect");
   const currency = split.currencyCode;
   const friends = split.participants.filter((p) => !p.isHost);
   const owedCents = cents(split.owed) ?? 0;
   const collectedCents = cents(split.collected) ?? 0;
-  const allPaid = friends.every((p) => p.status !== "pending");
+  const otherCents = cents(split.collectedOther) ?? 0;
+  const claimedCount = friends.filter((p) => p.status === "claimed").length;
+  const allPaid = friends.every(
+    (p) => p.status !== "pending" && p.status !== "claimed",
+  );
 
   $("#collect-title").textContent = allPaid
     ? "Everyone has paid you back 🎉"
@@ -682,80 +695,149 @@ function showDashboard(split) {
   $("#progress-bar").style.width = owedCents
     ? `${Math.round((collectedCents / owedCents) * 100)}%`
     : "100%";
-  $("#collect-summary").textContent =
-    `${money(collectedCents, currency)} of ${money(owedCents, currency)} collected`;
+
+  let summary = `${money(collectedCents, currency)} of ${money(owedCents, currency)} collected`;
+  if (otherCents > 0) {
+    summary += ` (${money(split.collectedViaPayPal, currency)} via PayPal, ${money(otherCents, currency)} confirmed by you)`;
+  }
+  if (claimedCount > 0) {
+    summary += ` · ${claimedCount} waiting for you to confirm`;
+  }
+  $("#collect-summary").textContent = summary;
 
   $("#shares-body").replaceChildren(
-    ...split.participants.map((participant) => {
-      const payUrl =
-        participant.payPath &&
-        new URL(participant.payPath, location.origin).href;
-      const message = `Hi ${participant.name}! Your share of ${split.merchantName} is ${money(participant.total, currency)}. Pay me back with PayPal: ${payUrl}`;
-      const statusLabel = {
-        host: participant.isHost ? "you" : "nothing owed",
-        pending: "waiting",
-        paid: "paid",
-      }[participant.status];
-
-      return el("tr", {}, [
-        el("td", {}, [
-          el("strong", { text: participant.name }),
-          " ",
-          el("span", {
-            className: `badge ${participant.status}`,
-            text: statusLabel,
-          }),
-          el("div", {
-            className: "breakdown",
-            text: participant.items.length
-              ? participant.items.map(({ name }) => name).join(", ")
-              : "Equal share",
-          }),
-          participant.status === "pending" &&
-            el("div", { className: "share-actions" }, [
-              el("button", {
-                type: "button",
-                className: "small-button",
-                text: "Copy link",
-                onclick: async (event) => {
-                  try {
-                    await navigator.clipboard.writeText(message);
-                    event.target.textContent = "Copied ✓";
-                  } catch {
-                    window.prompt("Copy this message:", message);
-                  }
-                },
-              }),
-              el("a", {
-                className: "small-button",
-                href: `https://wa.me/?text=${encodeURIComponent(message)}`,
-                target: "_blank",
-                rel: "noopener",
-                text: "Share on WhatsApp",
-              }),
-              el("a", {
-                className: "small-button",
-                href: payUrl,
-                target: "_blank",
-                rel: "noopener",
-                text: "Open pay page",
-              }),
-            ]),
-        ]),
-        el("td", {
-          className: "money",
-          text: money(participant.total, currency),
-        }),
-      ]);
-    }),
+    ...split.participants.map((participant) =>
+      shareRow(split, participant, currency),
+    ),
   );
 
   if (allPaid) stopPolling();
 }
 
+function shareRow(split, participant, currency) {
+  const payUrl =
+    participant.payPath && new URL(participant.payPath, location.origin).href;
+  const message = `Hi ${participant.name}! Your share of ${split.merchantName} is ${money(participant.total, currency)}. Pay me back with PayPal: ${payUrl}`;
+  const claim = participant.claim;
+  const statusLabel = {
+    host: participant.isHost ? "you" : "nothing owed",
+    pending: "waiting",
+    claimed: "says paid",
+    paid:
+      participant.paidVia === "paypal" ? "paid · PayPal" : "paid · confirmed",
+  }[participant.status];
+
+  return el("tr", {}, [
+    el("td", {}, [
+      el("strong", { text: participant.name }),
+      " ",
+      el("span", {
+        className: `badge ${participant.status}`,
+        text: statusLabel,
+      }),
+      el("div", {
+        className: "breakdown",
+        text: participant.items.length
+          ? participant.items.map(({ name }) => name).join(", ")
+          : "Equal share",
+      }),
+
+      // the friend says they paid outside PayPal: the host confirms or rejects
+      participant.status === "claimed" &&
+        el("div", { className: "claim-box" }, [
+          el("div", {
+            text: `Says they paid you by ${CLAIM_METHOD_LABELS[claim?.method] ?? "another way"}.`,
+          }),
+          claim?.note &&
+            el("div", { className: "claim-note", text: `“${claim.note}”` }),
+          el("div", { className: "share-actions" }, [
+            hostActionButton(
+              split,
+              participant,
+              "confirm",
+              "Confirm received",
+              {
+                primary: true,
+              },
+            ),
+            hostActionButton(split, participant, "reject", "Not received"),
+          ]),
+        ]),
+
+      participant.status === "pending" &&
+        el("div", { className: "share-actions" }, [
+          el("button", {
+            type: "button",
+            className: "small-button",
+            text: "Copy link",
+            onclick: async (event) => {
+              try {
+                await navigator.clipboard.writeText(message);
+                event.target.textContent = "Copied ✓";
+              } catch {
+                window.prompt("Copy this message:", message);
+              }
+            },
+          }),
+          el("a", {
+            className: "small-button",
+            href: `https://wa.me/?text=${encodeURIComponent(message)}`,
+            target: "_blank",
+            rel: "noopener",
+            text: "Share on WhatsApp",
+          }),
+          el("a", {
+            className: "small-button",
+            href: payUrl,
+            target: "_blank",
+            rel: "noopener",
+            text: "Open pay page",
+          }),
+          hostActionButton(split, participant, "confirm", "Mark as paid", {
+            confirmText: `Mark ${participant.name} as paid? Only do this once you've received ${money(participant.total, currency)} from them.`,
+          }),
+        ]),
+    ]),
+    el("td", {
+      className: "money",
+      text: money(participant.total, currency),
+    }),
+  ]);
+}
+
+/** "Confirm received", "Not received" and "Mark as paid": need the host token. */
+function hostActionButton(split, participant, action, label, options = {}) {
+  return el("button", {
+    type: "button",
+    className: `small-button ${options.primary ? "confirm-button" : ""}`,
+    text: label,
+    onclick: async (event) => {
+      if (options.confirmText && !window.confirm(options.confirmText)) return;
+      const button = event.target;
+      button.disabled = true;
+      state.hostActionInFlight = true;
+      try {
+        const updated = await postJson(
+          `/api/splits/${encodeURIComponent(split.id)}/participants/${encodeURIComponent(participant.participantId)}/${action}`,
+          { hostToken: state.hostToken },
+        );
+        showDashboard(updated);
+      } catch (error) {
+        renderAlert({ type: "danger", message: error.message });
+        button.disabled = false;
+      } finally {
+        state.hostActionInFlight = false;
+      }
+    },
+  });
+}
+
 function startPolling(id, hostToken) {
   stopPolling();
+  state.hostToken = hostToken;
   const refresh = async () => {
+    // don't redraw the buttons under the host's finger mid-action
+    if (state.hostActionInFlight) return;
     try {
       const split = await getJson(
         `/api/splits/${encodeURIComponent(id)}?hostToken=${encodeURIComponent(hostToken)}`,

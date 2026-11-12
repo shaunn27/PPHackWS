@@ -19,6 +19,7 @@ import {
   getSplit,
   newToken,
   updateParticipant,
+  CLAIM_METHODS,
   type StoredParticipant,
   type StoredSplit,
 } from "../split/splitStore";
@@ -122,9 +123,15 @@ function hostView(split: StoredSplit) {
   const owedCents = split.participants
     .filter((participant) => !participant.isHost)
     .reduce((sum, participant) => sum + participant.share.totalCents, 0);
-  const collectedCents = split.participants
-    .filter((participant) => participant.status === "paid")
-    .reduce((sum, participant) => sum + participant.share.totalCents, 0);
+  // a claim ("I've paid another way") is NOT collected until the host confirms it
+  const collected = (via?: "paypal" | "other") =>
+    split.participants
+      .filter(
+        (participant) =>
+          participant.status === "paid" &&
+          (via === undefined || participant.paidVia === via),
+      )
+      .reduce((sum, participant) => sum + participant.share.totalCents, 0);
 
   return {
     id: split.id,
@@ -137,12 +144,17 @@ function hostView(split: StoredSplit) {
     currencyCode: split.receipt.currencyCode,
     total: split.receipt.total,
     owed: formatCents(owedCents),
-    collected: formatCents(collectedCents),
+    collected: formatCents(collected()),
+    collectedViaPayPal: formatCents(collected("paypal")),
+    collectedOther: formatCents(collected("other")),
     hostPath: `${PAGE_PATH}/index.html?split=${split.id}&host=${split.hostToken}`,
     participants: split.participants.map((participant) => ({
       ...formatShare(participant.share),
       status: participant.status,
       paidAt: participant.paidAt,
+      paidVia: participant.paidVia,
+      claim: participant.claim,
+      confirmedAt: participant.confirmedAt,
       ...(!participant.isHost && { payPath: payPath(split, participant) }),
     })),
   };
@@ -220,13 +232,8 @@ export function createSplitRouteHandler(request: Request, response: Response) {
   response.status(201).json({ ...hostView(split), hostToken: split.hostToken });
 }
 
-export function getSplitRouteHandler(request: Request, response: Response) {
-  const { id } = z.object({ id: z.string() }).parse(request.params);
-  const { hostToken } = z
-    .object({ hostToken: z.string() })
-    .parse(request.query);
-  const split = loadSplit(id);
-  if (split.hostToken !== hostToken) {
+function assertHost(split: StoredSplit, hostToken: unknown) {
+  if (typeof hostToken !== "string" || split.hostToken !== hostToken) {
     throw new CustomApiError({
       message: "Invalid host link",
       statusCode: 403,
@@ -236,6 +243,74 @@ export function getSplitRouteHandler(request: Request, response: Response) {
       },
     });
   }
+}
+
+export function getSplitRouteHandler(request: Request, response: Response) {
+  const { id } = z.object({ id: z.string() }).parse(request.params);
+  const split = loadSplit(id);
+  assertHost(split, request.query.hostToken);
+  response.status(200).json(hostView(split));
+}
+
+/** For the host's "Confirm received" / "Not received" / "Mark as paid" buttons. */
+function loadHostAction(request: Request) {
+  const { id, participantId } = z
+    .object({ id: z.string(), participantId: z.string() })
+    .parse(request.params);
+  const { hostToken } = z
+    .object({ hostToken: z.string() })
+    .parse(request.body ?? {});
+  const split = loadSplit(id);
+  assertHost(split, hostToken);
+
+  const participant = split.participants.find(
+    ({ id: candidate }) => candidate === participantId,
+  );
+  if (!participant) {
+    throw new CustomApiError({
+      message: "Participant not found",
+      statusCode: 404,
+      result: {
+        error: "Not Found",
+        errorDescription: "This person isn't part of the split",
+      },
+    });
+  }
+  assertPayable(participant);
+  return { split, participant };
+}
+
+/**
+ * The host confirms they received the money outside PayPal (cash, bank
+ * transfer...). Works on a friend's claim, or directly on a pending share
+ * for someone who paid in person without opening their link.
+ */
+export function confirmPaymentRouteHandler(
+  request: Request,
+  response: Response,
+) {
+  const { split, participant } = loadHostAction(request);
+  const now = new Date().toISOString();
+  updateParticipant(split.id, participant.id, {
+    status: "paid",
+    paidVia: "other",
+    paidAt: now,
+    confirmedAt: now,
+  });
+  response.status(200).json(hostView(split));
+}
+
+/** The host says a claimed payment hasn't arrived: back to waiting. */
+export function rejectClaimRouteHandler(request: Request, response: Response) {
+  const { split, participant } = loadHostAction(request);
+  if (participant.status !== "claimed") {
+    throw badRequest(`${participant.name} hasn't said they paid`);
+  }
+  updateParticipant(split.id, participant.id, {
+    status: "pending",
+    claim: undefined,
+    claimRejectedAt: new Date().toISOString(),
+  });
   response.status(200).json(hostView(split));
 }
 
@@ -254,8 +329,53 @@ export function getPayViewRouteHandler(request: Request, response: Response) {
     hostName: split.hostName,
     status: participant.status,
     paidAt: participant.paidAt,
+    paidVia: participant.paidVia,
+    claim: participant.claim,
+    claimRejectedAt: participant.claimRejectedAt,
     share: formatShare(participant.share),
   });
+}
+
+const ClaimSchema = z
+  .object({
+    method: z.enum(CLAIM_METHODS),
+    note: z
+      .string()
+      .trim()
+      .max(140, "Keep the note under 140 characters")
+      .optional(),
+  })
+  .strict();
+
+/**
+ * The friend says "I've paid another way". This only flags the share for
+ * the host to check: it is never counted as paid until the host confirms.
+ */
+export function claimPaymentRouteHandler(request: Request, response: Response) {
+  const { split, participant } = loadPayer(request);
+  const { method, note } = ClaimSchema.parse(request.body ?? {});
+
+  assertPayable(participant);
+  if (participant.status === "claimed") {
+    throw new CustomApiError({
+      message: "Already claimed",
+      statusCode: 409,
+      result: {
+        error: "Conflict",
+        errorDescription: `You've already told ${split.hostName} you paid. They just need to confirm it`,
+      },
+    });
+  }
+
+  updateParticipant(split.id, participant.id, {
+    status: "claimed",
+    claim: {
+      method,
+      ...(note && { note }),
+      claimedAt: new Date().toISOString(),
+    },
+  });
+  response.status(200).json({ status: "claimed" });
 }
 
 function assertPayable(participant: StoredParticipant) {
@@ -357,6 +477,8 @@ export async function captureSplitOrderRouteHandler(
   // auto-reconciliation: the share is settled the moment PayPal captures it
   updateParticipant(split.id, participant.id, {
     status: "paid",
+    paidVia: "paypal",
+    claim: undefined,
     captureId: capture.id,
     paidAt: new Date().toISOString(),
   });
