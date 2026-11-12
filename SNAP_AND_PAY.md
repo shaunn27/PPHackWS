@@ -92,7 +92,7 @@ To try it from a phone camera, expose the server over HTTPS. The server opens an
 
 ```bash
 cd server/node
-npm test        # 41 tests, including the AI extraction and bill-payment routes
+npm test        # 78 tests, including the AI extraction and bill-payment routes
 npm run lint    # ESLint + TypeScript
 ```
 
