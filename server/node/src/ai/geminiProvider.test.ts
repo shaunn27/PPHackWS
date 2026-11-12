@@ -51,7 +51,7 @@ describe("geminiBillExtractor", () => {
     );
 
     const [url, init] = fetchMock.mock.calls[0];
-    expect(url).toContain("/models/gemini-2.5-flash:generateContent");
+    expect(url).toContain("/models/gemini-3.5-flash:generateContent");
     expect(init.headers["x-goog-api-key"]).toBe("fake-gemini-key");
     const body = JSON.parse(init.body);
     expect(body.contents[0].parts[0].inlineData).toEqual({
@@ -81,14 +81,72 @@ describe("geminiBillExtractor", () => {
     );
   });
 
-  test("passes a rate-limit error through as 429", async () => {
-    mockFetch(429, {
+  test("retries once when the model is overloaded, then succeeds", async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 503,
+        json: async () => ({
+          error: { code: 503, message: "High demand", status: "UNAVAILABLE" },
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => geminiAnswer(JSON.stringify(extracted)),
+      });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const promise = geminiBillExtractor.extractBill(image);
+    await vi.runAllTimersAsync();
+
+    await expect(promise).resolves.toEqual(extracted);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    vi.useRealTimers();
+  });
+
+  test("passes a rate-limit error through as 429 after retrying", async () => {
+    vi.useFakeTimers();
+    const fetchMock = mockFetch(429, {
       error: { code: 429, message: "Quota exceeded", status: "EXHAUSTED" },
     });
 
     const promise = geminiBillExtractor.extractBill(image);
+    const assertion = expect(promise).rejects.toMatchObject({
+      statusCode: 429,
+    });
+    await vi.runAllTimersAsync();
+
+    await assertion;
     await expect(promise).rejects.toBeInstanceOf(CustomApiError);
-    await expect(promise).rejects.toMatchObject({ statusCode: 429 });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    vi.useRealTimers();
+  });
+
+  test("does not retry other errors", async () => {
+    const fetchMock = mockFetch(400, {
+      error: { code: 400, message: "Bad image", status: "INVALID_ARGUMENT" },
+    });
+
+    await expect(geminiBillExtractor.extractBill(image)).rejects.toMatchObject({
+      statusCode: 502,
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  test("turns a timeout into a 504 with a helpful message", async () => {
+    const timeout = new Error("The operation timed out");
+    timeout.name = "TimeoutError";
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(timeout));
+
+    await expect(geminiBillExtractor.extractBill(image)).rejects.toMatchObject({
+      statusCode: 504,
+      result: expect.objectContaining({
+        errorDescription: expect.stringContaining("didn't respond"),
+      }),
+    });
   });
 
   test("rejects an answer that doesn't match the schema", async () => {

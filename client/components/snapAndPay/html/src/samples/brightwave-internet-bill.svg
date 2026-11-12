@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="800" viewBox="0 0 600 800" font-family="Helvetica, Arial, sans-serif">
+  <!-- Fictional sample bill for the Snap & Pay demo. Not a real company. -->
+  <rect width="600" height="800" fill="#ffffff"/>
+  <rect width="600" height="8" fill="#5b3cc4"/>
+  <g transform="translate(40 40)">
+    <circle cx="24" cy="24" r="24" fill="#5b3cc4"/>
+    <path d="M10 28 Q24 10 38 28" stroke="#ffffff" stroke-width="4" fill="none" stroke-linecap="round"/>
+    <path d="M16 32 Q24 22 32 32" stroke="#ffffff" stroke-width="4" fill="none" stroke-linecap="round"/>
+    <circle cx="24" cy="37" r="3" fill="#ffffff"/>
+  </g>
+  <text x="104" y="62" font-size="26" font-weight="700" fill="#2a1a6e">Brightwave Internet</text>
+  <text x="104" y="84" font-size="13" fill="#6b6385">Fibre broadband · 77 Signal Hill Road, Port Ellis</text>
+  <text x="560" y="62" font-size="13" fill="#6b6385" text-anchor="end">INVOICE</text>
+  <text x="560" y="84" font-size="15" font-weight="700" fill="#2a1a6e" text-anchor="end">BW-INV-118204</text>
+
+  <rect x="40" y="120" width="520" height="96" rx="10" fill="#f4f1fd"/>
+  <text x="60" y="150" font-size="13" fill="#6b6385">Bill to</text>
+  <text x="60" y="172" font-size="16" fill="#222">Alex Morgan</text>
+  <text x="60" y="194" font-size="13" fill="#555">9 Orchard Lane, Port Ellis</text>
+  <text x="340" y="150" font-size="13" fill="#6b6385">Customer ID</text>
+  <text x="340" y="172" font-size="16" font-weight="700" fill="#222">BW-77310</text>
+  <text x="340" y="194" font-size="13" fill="#6b6385">Period: 1 – 30 Nov 2026</text>
+
+  <text x="40" y="256" font-size="14" font-weight="700" fill="#222">Item</text>
+  <text x="560" y="256" font-size="14" font-weight="700" fill="#222" text-anchor="end">Amount</text>
+  <line x1="40" y1="266" x2="560" y2="266" stroke="#ddd"/>
+  <text x="40" y="294" font-size="14" fill="#333">Fibre 500 plan (monthly)</text>
+  <text x="560" y="294" font-size="14" fill="#333" text-anchor="end">$49.00</text>
+  <text x="40" y="322" font-size="14" fill="#333">Wi-Fi router rental</text>
+  <text x="560" y="322" font-size="14" fill="#333" text-anchor="end">$5.00</text>
+  <text x="40" y="350" font-size="14" fill="#333">Loyalty discount</text>
+  <text x="560" y="350" font-size="14" fill="#1f7a4d" text-anchor="end">−$3.00</text>
+  <line x1="40" y1="366" x2="560" y2="366" stroke="#ddd"/>
+  <text x="400" y="394" font-size="14" fill="#555">Subtotal</text>
+  <text x="560" y="394" font-size="14" fill="#333" text-anchor="end">$51.00</text>
+  <text x="400" y="420" font-size="14" fill="#555">Tax (8%)</text>
+  <text x="560" y="420" font-size="14" fill="#333" text-anchor="end">$4.08</text>
+
+  <rect x="300" y="440" width="260" height="76" rx="10" fill="#5b3cc4"/>
+  <text x="318" y="468" font-size="13" fill="#e4dcff">AMOUNT DUE BY 2026-12-05</text>
+  <text x="544" y="502" font-size="26" font-weight="700" fill="#ffffff" text-anchor="end">$55.08 USD</text>
+
+  <rect x="40" y="552" width="520" height="132" rx="10" fill="#ffffff" stroke="#c9bdf3" stroke-width="1.5"/>
+  <text x="60" y="584" font-size="16" font-weight="700" fill="#2a1a6e">Payment options</text>
+  <text x="60" y="612" font-size="14" fill="#333">PayPal (preferred):</text>
+  <text x="60" y="636" font-size="16" font-weight="700" fill="#003087">sb-acuw253851754@business.example.com</text>
+  <text x="60" y="664" font-size="12" fill="#555">Quote invoice BW-INV-118204 with your payment. Late fee $5 after due date.</text>
+
+  <text x="300" y="740" font-size="12" fill="#888" text-anchor="middle">support@brightwave.example · Thank you for choosing Brightwave.</text>
+  <text x="300" y="760" font-size="10" fill="#aaa" text-anchor="middle">This is a fictional bill created for a software demo.</text>
+</svg>
