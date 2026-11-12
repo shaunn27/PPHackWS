@@ -1,5 +1,7 @@
 # PayPal v6 Web SDK Sample Integration
 
+> **Hackathon project: Snap & Pay.** Photograph a bill, let AI read the payee and amount, check it, and pay the biller with PayPal. See [SNAP_AND_PAY.md](SNAP_AND_PAY.md) for the full write-up, setup and safety design.
+
 This repository contains sample integrations for PayPal's v6 Web SDK. Learn how to:
 
 - make one-time payments with different payment methods like PayPal and Venmo

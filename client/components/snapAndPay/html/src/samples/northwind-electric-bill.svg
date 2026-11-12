@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="800" viewBox="0 0 600 800" font-family="Helvetica, Arial, sans-serif">
+  <!-- Fictional sample bill for the Snap & Pay demo. Not a real company. -->
+  <rect width="600" height="800" fill="#ffffff"/>
+  <rect width="600" height="110" fill="#f2b705"/>
+  <path d="M70 25 L48 62 L64 62 L56 88 L82 50 L66 50 L74 25 Z" fill="#1d1d1d"/>
+  <text x="104" y="52" font-size="28" font-weight="700" fill="#1d1d1d">Northwind Electric</text>
+  <text x="104" y="80" font-size="14" fill="#3d3300">Powering homes since 1952 · 88 Harbor Road, Lakeside</text>
+
+  <text x="40" y="160" font-size="22" font-weight="700" fill="#222">ELECTRICITY STATEMENT</text>
+  <text x="40" y="200" font-size="14" fill="#555">Customer</text>
+  <text x="40" y="222" font-size="16" fill="#222">Jamie Rivera</text>
+  <text x="40" y="244" font-size="14" fill="#555">42 Maple Street, Springfield</text>
+
+  <text x="340" y="200" font-size="14" fill="#555">Customer ref.</text>
+  <text x="340" y="222" font-size="16" font-weight="700" fill="#222">NE-5531-0098</text>
+  <text x="340" y="252" font-size="14" fill="#555">Statement date</text>
+  <text x="470" y="252" font-size="14" fill="#222">2026-11-03</text>
+  <text x="340" y="276" font-size="14" fill="#555">Pay by</text>
+  <text x="470" y="276" font-size="14" font-weight="700" fill="#b3261e">2026-11-24</text>
+
+  <line x1="40" y1="310" x2="560" y2="310" stroke="#ccc"/>
+  <text x="40" y="340" font-size="14" font-weight="700" fill="#222">Description</text>
+  <text x="560" y="340" font-size="14" font-weight="700" fill="#222" text-anchor="end">Amount</text>
+  <text x="40" y="372" font-size="14" fill="#333">Energy used (318 kWh)</text>
+  <text x="560" y="372" font-size="14" fill="#333" text-anchor="end">$63.60</text>
+  <text x="40" y="398" font-size="14" fill="#333">Daily supply charge (30 days)</text>
+  <text x="560" y="398" font-size="14" fill="#333" text-anchor="end">$15.00</text>
+  <text x="40" y="424" font-size="14" fill="#333">Tax</text>
+  <text x="560" y="424" font-size="14" fill="#333" text-anchor="end">$7.86</text>
+  <line x1="40" y1="444" x2="560" y2="444" stroke="#ccc"/>
+
+  <rect x="300" y="460" width="260" height="70" rx="8" fill="#fff8dd" stroke="#c99700"/>
+  <text x="316" y="488" font-size="14" fill="#6b5200">AMOUNT DUE</text>
+  <text x="544" y="518" font-size="26" font-weight="700" fill="#1d1d1d" text-anchor="end">$86.46 USD</text>
+
+  <rect x="40" y="570" width="520" height="130" rx="8" fill="#f6f8fa" stroke="#d0d7de"/>
+  <text x="60" y="602" font-size="16" font-weight="700" fill="#222">How to pay</text>
+  <text x="60" y="630" font-size="14" fill="#333">Bank transfer only</text>
+  <text x="60" y="654" font-size="14" fill="#333">Bank: Lakeside Savings Bank   Routing: 000111222</text>
+  <text x="60" y="676" font-size="14" fill="#333">Account: 9876543210   Reference: NE-5531-0098</text>
+
+  <text x="300" y="760" font-size="12" fill="#888" text-anchor="middle">Questions? help@northwind-electric.example · Report outages 24/7.</text>
+</svg>

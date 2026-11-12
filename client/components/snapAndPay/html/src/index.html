@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Snap &amp; Pay - AI bill payments with PayPal</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="/client/shared/styles.css" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="hero">
+      <h1>Snap &amp; Pay</h1>
+      <p class="lede">
+        Snap a photo of a bill. AI reads the payee and amount, you check them,
+        and PayPal pays the biller. No typing account details.
+      </p>
+    </header>
+
+    <ol class="steps" aria-label="Progress">
+      <li data-step="capture" class="active">1. Snap</li>
+      <li data-step="review">2. Review</li>
+      <li data-step="pay">3. Pay</li>
+      <li data-step="done">4. Done</li>
+    </ol>
+
+    <!-- Step 1: capture -->
+    <section id="capture-section" class="card">
+      <h2>Snap or upload a bill</h2>
+      <label class="dropzone" id="dropzone">
+        <input
+          id="file-input"
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          capture="environment"
+        />
+        <span class="dropzone-icon" aria-hidden="true">📷</span>
+        <span
+          ><strong>Take a photo</strong> or choose an image (JPEG, PNG,
+          WebP)</span
+        >
+        <span class="muted">You can also drag an image here</span>
+      </label>
+
+      <p class="muted samples-label">
+        No bill to hand? Try a fictional sample:
+      </p>
+      <div class="samples">
+        <button
+          type="button"
+          class="sample"
+          data-src="samples/greenleaf-water-bill.svg"
+        >
+          <img src="samples/greenleaf-water-bill.svg" alt="" />
+          <span><strong>Water bill</strong> Clean, pays with PayPal</span>
+        </button>
+        <button
+          type="button"
+          class="sample"
+          data-src="samples/northwind-electric-bill.svg"
+        >
+          <img src="samples/northwind-electric-bill.svg" alt="" />
+          <span><strong>Electric bill</strong> No PayPal payee</span>
+        </button>
+        <button
+          type="button"
+          class="sample"
+          data-src="samples/tampered-water-bill.svg"
+        >
+          <img src="samples/tampered-water-bill.svg" alt="" />
+          <span><strong>Tampered bill</strong> Hidden AI instruction</span>
+        </button>
+      </div>
+    </section>
+
+    <!-- Step 2 + 3: review and pay -->
+    <section id="review-section" class="card" hidden>
+      <div class="review-layout">
+        <figure class="preview">
+          <img id="bill-preview" alt="The bill you uploaded" />
+          <figcaption class="muted">Your bill</figcaption>
+        </figure>
+
+        <div class="review-form-wrap">
+          <div id="extracting" class="extracting" hidden>
+            <div class="spinner" aria-hidden="true"></div>
+            <p>Reading your bill with AI…</p>
+          </div>
+
+          <form id="review-form" hidden novalidate>
+            <h2>Check the details</h2>
+            <p class="muted">
+              Filled in by AI from your photo
+              <span id="provider-label"></span>. Fix anything that's wrong
+              before you pay.
+            </p>
+
+            <ul id="warnings" class="warnings" hidden></ul>
+
+            <label>
+              Biller
+              <input id="biller-name" name="billerName" required />
+            </label>
+            <label>
+              Pay to (PayPal email)
+              <input
+                id="payee-email"
+                name="payeeEmail"
+                type="email"
+                required
+                autocomplete="off"
+              />
+              <span id="payee-status" class="field-note"></span>
+            </label>
+            <div class="row">
+              <label class="grow">
+                Amount
+                <input id="amount" name="amount" inputmode="decimal" required />
+              </label>
+              <label>
+                Currency
+                <select id="currency" name="currencyCode">
+                  <option>USD</option>
+                  <option>EUR</option>
+                  <option>GBP</option>
+                  <option>AUD</option>
+                  <option>CAD</option>
+                  <option>SGD</option>
+                </select>
+              </label>
+            </div>
+            <div class="row">
+              <label class="grow">
+                Reference
+                <input id="reference" name="reference" />
+              </label>
+              <label class="grow">
+                Due date
+                <input id="due-date" name="dueDate" readonly />
+              </label>
+            </div>
+
+            <p id="form-error" class="form-error" role="alert"></p>
+
+            <label class="confirm">
+              <input id="confirm-check" type="checkbox" />
+              I've checked the payee and amount against the bill
+            </label>
+
+            <div id="pay-container" class="pay-container locked">
+              <paypal-button
+                id="paypal-button"
+                type="pay"
+                hidden
+              ></paypal-button>
+              <p id="pay-hint" class="muted pay-hint">
+                Tick the box above to unlock payment.
+              </p>
+            </div>
+
+            <button type="button" id="start-over" class="link-button">
+              ← Use a different bill
+            </button>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <!-- Step 4: receipt -->
+    <section id="receipt-section" class="card receipt" hidden>
+      <div class="receipt-icon" aria-hidden="true">✓</div>
+      <h2>Bill paid</h2>
+      <dl id="receipt-details"></dl>
+      <button type="button" id="pay-another" class="primary-button">
+        Pay another bill
+      </button>
+    </section>
+
+    <alert-component hidden></alert-component>
+
+    <script src="app.js"></script>
+    <script
+      async
+      src="https://www.sandbox.paypal.com/web-sdk/v6/core"
+      onload="onPayPalWebSdkLoaded()"
+    ></script>
+    <script async src="/client/shared/alert-component.js"></script>
+  </body>
+</html>

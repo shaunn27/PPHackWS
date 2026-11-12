@@ -17,7 +17,16 @@ type AuthTokenErrorResponse = {
   error_description: string;
 };
 
+// Access tokens last about 9 hours. Cache one in memory and refresh it shortly
+// before it expires, instead of requesting a new token on every API call.
+const TOKEN_EXPIRY_MARGIN_MS = 60_000;
+let cachedToken: { accessToken: string; expiresAt: number } | undefined;
+
 export async function getFullScopeAccessToken() {
+  if (cachedToken && Date.now() < cachedToken.expiresAt) {
+    return cachedToken.accessToken;
+  }
+
   const encodedClientCredentials = Buffer.from(
     `${PAYPAL_SANDBOX_CLIENT_ID}:${PAYPAL_SANDBOX_CLIENT_SECRET}`,
   ).toString("base64");
@@ -44,6 +53,10 @@ export async function getFullScopeAccessToken() {
     });
   }
 
-  const { access_token } = result as AuthTokenSuccessResponse;
+  const { access_token, expires_in } = result as AuthTokenSuccessResponse;
+  cachedToken = {
+    accessToken: access_token,
+    expiresAt: Date.now() + expires_in * 1000 - TOKEN_EXPIRY_MARGIN_MS,
+  };
   return access_token;
 }

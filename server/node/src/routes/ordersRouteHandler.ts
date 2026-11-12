@@ -16,6 +16,7 @@ import type { Request, Response } from "express";
 
 import { client } from "../paypalServerSdkClient";
 import { getAllProducts, getProduct } from "../productCatalog";
+import { BillPaymentSchema } from "../billPayment";
 
 const ordersController = new OrdersController(client);
 
@@ -505,6 +506,59 @@ export async function createOrderForCardWithThreeDSecureRouteHandler(
         },
       },
     },
+  };
+
+  const { result, statusCode } = await ordersController.createOrder({
+    body: orderRequestBody,
+    paypalRequestId: randomUUID(),
+    prefer: "return=minimal",
+  });
+
+  response.status(statusCode).json(result);
+}
+
+/**
+ * Snap & Pay: pays a bill to the PayPal account that the bill names.
+ *
+ * The values come from the review form the buyer confirmed, NOT straight
+ * from the AI extraction, and are validated again here (email format,
+ * amount cap, supported currency). The `payee` field routes the funds to
+ * the biller's PayPal account instead of this app's own account.
+ */
+export async function createOrderForBillPaymentRouteHandler(
+  request: Request,
+  response: Response,
+) {
+  const { payeeEmail, amount, currencyCode, billerName, reference } =
+    BillPaymentSchema.parse(request.body ?? {});
+
+  const orderRequestBody = {
+    intent: CheckoutPaymentIntent.Capture,
+    purchaseUnits: [
+      {
+        payee: { emailAddress: payeeEmail },
+        description: `Bill payment to ${billerName}`.slice(0, 127),
+        // customId (not invoiceId) so the same bill can be paid again in demos
+        ...(reference && { customId: reference }),
+        amount: {
+          currencyCode,
+          value: amount,
+          breakdown: {
+            itemTotal: { currencyCode, value: amount },
+          },
+        },
+        items: [
+          {
+            name: (reference
+              ? `${billerName} - ${reference}`
+              : billerName
+            ).slice(0, 127),
+            quantity: "1",
+            unitAmount: { currencyCode, value: amount },
+          },
+        ],
+      },
+    ],
   };
 
   const { result, statusCode } = await ordersController.createOrder({

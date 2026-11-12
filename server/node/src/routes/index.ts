@@ -1,5 +1,7 @@
 import { Router } from "express";
 
+import { extractBillRouteHandler } from "./aiRouteHandler";
+
 import {
   clientTokenRouteHandler,
   clientIdRouteHandler,
@@ -17,6 +19,7 @@ import {
   captureOrderRouteHandler,
   captureAchWalletOrderRouteHandler,
   createOrderForSavedPaymentMethodsRouteHandler,
+  createOrderForBillPaymentRouteHandler,
 } from "./ordersRouteHandler";
 
 import {
@@ -77,6 +80,14 @@ router.post(
   "/paypal-api/checkout/orders/create-order-for-card-one-time-payment-with-3ds",
   createOrderForCardWithThreeDSecureRouteHandler,
 );
+
+router.post(
+  "/paypal-api/checkout/orders/create-order-for-bill-payment",
+  createOrderForBillPaymentRouteHandler,
+);
+
+// Snap & Pay: the larger JSON body limit for images is set in server.ts
+router.post("/ai/extract-bill", extractBillRouteHandler);
 
 router.get("/paypal-api/checkout/orders/:orderId", getOrderRouteHandler);
 
