@@ -651,3 +651,179 @@ input.amount {
     grid-template-columns: minmax(0, 1fr) 5.5rem auto;
   }
 }
+
+/* ---------- Phone-first layout ----------
+ * The app is a single narrow column, like a native phone app. On a wider
+ * screen it stays phone-sized and centred, so desktop demos look the same.
+ */
+
+html {
+  background: #eef1f5;
+}
+
+body {
+  max-width: 30rem;
+  min-height: 100vh;
+  min-height: 100dvh;
+  margin: 0 auto;
+  padding: 1rem 1rem 0;
+  background: #fff;
+}
+
+@media (min-width: 32rem) {
+  body {
+    box-shadow:
+      0 0 0 1px var(--border),
+      0 12px 40px rgb(0 0 0 / 8%);
+  }
+}
+
+.hero h1 {
+  font-size: 1.6rem;
+  margin-bottom: 0.25rem;
+}
+
+.lede {
+  font-size: 1rem;
+}
+
+.card {
+  padding: 1rem;
+  border-radius: 16px;
+}
+
+.steps {
+  gap: 0.25rem;
+  margin: 1rem 0;
+}
+
+.steps li {
+  min-width: 0;
+  padding: 0.35rem 0.25rem;
+  font-size: 0.75rem;
+}
+
+/* one column: the photo becomes a thumbnail above the form; tap to expand */
+.review-layout {
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+
+.preview img {
+  max-height: 9rem;
+  object-fit: cover;
+  object-position: top;
+  cursor: zoom-in;
+}
+
+.preview.expanded img {
+  max-height: none;
+  cursor: zoom-out;
+}
+
+.samples {
+  grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr));
+}
+
+/* touch targets of at least 44px, and 16px text so iOS doesn't zoom in */
+#review-form input,
+#review-form select,
+.line input,
+.field input,
+.field select,
+input.amount {
+  min-height: 2.75rem;
+  font-size: 1rem;
+}
+
+.line {
+  grid-template-columns: minmax(0, 1fr) 6rem 2.75rem;
+}
+
+.icon-button {
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+}
+
+.chip {
+  min-height: 2.5rem;
+  padding: 0.4rem 0.9rem;
+  font-size: 0.95rem;
+}
+
+.small-button {
+  min-height: 2.25rem;
+}
+
+.mode-toggle button {
+  min-height: 2.5rem;
+}
+
+#review-form label.confirm {
+  min-height: 3rem;
+}
+
+#review-form label.confirm input {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.primary-button {
+  width: 100%;
+  min-height: 3rem;
+  font-size: 1.05rem;
+}
+
+/* the main action sits at the bottom of the screen, like a native app */
+.actions-row,
+.pay-container {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  margin: 1rem -1rem 0;
+  padding: 0.75rem 1rem calc(0.75rem + env(safe-area-inset-bottom));
+  background: #fff;
+  border-top: 1px solid var(--border);
+}
+
+.actions-row {
+  flex-direction: column;
+  align-items: stretch;
+  text-align: center;
+}
+
+.receipt dl {
+  grid-template-columns: 1fr;
+  gap: 0;
+}
+
+.receipt dd {
+  margin-bottom: 0.5rem;
+}
+
+.pay-note {
+  margin: 0.5rem 0 0;
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+/* native selects ignore min-height in Safari: draw our own, same size as inputs */
+#review-form select,
+.field select {
+  appearance: none;
+  min-height: 2.75rem;
+  padding-right: 2rem;
+  background: #fff
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%235c6670' stroke-width='2'/%3E%3C/svg%3E")
+    no-repeat right 0.75rem center;
+}
+
+/* one field per row on a phone */
+.fields {
+  grid-template-columns: 1fr;
+}
+
+.card h1 {
+  font-size: 1.5rem;
+  margin-bottom: 0.25rem;
+}

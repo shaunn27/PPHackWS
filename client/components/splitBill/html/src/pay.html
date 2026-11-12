@@ -3,7 +3,11 @@
   <head>
     <meta charset="UTF-8" />
     <title>Pay your share - Split the Bill</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#003087" />
     <link rel="stylesheet" href="/client/shared/styles.css" />
     <link rel="stylesheet" href="styles.css" />
   </head>
@@ -27,7 +31,7 @@
 
       <div id="pay-area" class="pay-container">
         <paypal-button id="paypal-button" type="pay" hidden></paypal-button>
-        <p class="muted pay-hint">
+        <p class="muted pay-note">
           The money goes straight to <span id="host-name-2"></span>'s PayPal
           account.
         </p>

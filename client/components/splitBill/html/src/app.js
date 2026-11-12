@@ -839,3 +839,8 @@ function renderAlert({ type, message }) {
 function clearAlert() {
   $("alert-component").hidden = true;
 }
+
+// tap the photo thumbnail to see the whole bill, tap again to shrink it
+document.querySelector(".preview img")?.addEventListener("click", (event) => {
+  event.target.closest(".preview").classList.toggle("expanded");
+});
