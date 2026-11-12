@@ -138,7 +138,7 @@ In `client/components/snapAndPay/html/src/samples/`:
 | `greenleaf-water-bill.svg` | A clean bill payable by PayPal (one-click sample) |
 | `northwind-electric-bill.svg` | Bank transfer only, no PayPal payee (one-click sample) |
 | `tampered-water-bill.svg` | Small print telling the AI to pay a different address (one-click sample) |
-| `brightwave-internet-bill.png` | A bill to **upload** through the file picker, or to open on another screen and photograph with a phone. It lists two emails, so it also tests that the AI picks the one labelled for PayPal. |
+| `brightwave-internet-bill.svg` / `.png` | An internet bill (one-click sample, or upload the PNG through the file picker, or photograph it on another screen). It lists two emails, so it also tests that the AI picks the one labelled for PayPal. |
 
 Tested against the live Gemini API, all four extract correctly in about 2–12 seconds with `gemini-3.5-flash-lite`. The model refused the tampered bill's injected instruction and flagged it. The same held for 3.5 Flash, 3 Flash Preview and 3.1 Flash-Lite.
 
