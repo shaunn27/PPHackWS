@@ -1,5 +1,7 @@
 import { z } from "zod/v4";
 
+import type { ExtractedReceipt } from "./receiptSchema";
+
 /**
  * The structured data an AI model extracts from a photo of a bill.
  *
@@ -31,6 +33,7 @@ export type BillImage = {
 export interface BillExtractor {
   name: string;
   extractBill(image: BillImage): Promise<ExtractedBill>;
+  extractReceipt(image: BillImage): Promise<ExtractedReceipt>;
 }
 
 /**

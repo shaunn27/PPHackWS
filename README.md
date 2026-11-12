@@ -1,6 +1,8 @@
 # PayPal v6 Web SDK Sample Integration
 
 > **Hackathon project: Snap & Pay.** Photograph a bill, let AI read the payee and amount, check it, and pay the biller with PayPal. See [SNAP_AND_PAY.md](SNAP_AND_PAY.md) for the full write-up, setup and safety design.
+>
+> **Also: Split the Bill.** Snap a group receipt, tap who had what, and friends pay you back their exact share with PayPal. See [SPLIT_BILL.md](SPLIT_BILL.md).
 
 This repository contains sample integrations for PayPal's v6 Web SDK. Learn how to:
 

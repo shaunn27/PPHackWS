@@ -23,6 +23,7 @@ app.use(cors());
 // Snap & Pay uploads bill images as base64, which exceeds the default 100kb limit.
 // Registered first: the global parser below skips bodies that are already parsed.
 app.use("/ai/extract-bill", express.json({ limit: "8mb" }));
+app.use("/ai/extract-receipt", express.json({ limit: "8mb" }));
 app.use(express.json());
 app.use(routes);
 app.use("/client", express.static(CLIENT_STATIC_DIRECTORY));

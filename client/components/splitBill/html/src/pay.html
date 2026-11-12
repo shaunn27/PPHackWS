@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Pay your share - Split the Bill</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="/client/shared/styles.css" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <section id="loading" class="card extracting">
+      <div class="spinner" aria-hidden="true"></div>
+      <p>Loading your share…</p>
+    </section>
+
+    <section id="share-section" class="card" hidden>
+      <p class="muted" id="share-context"></p>
+      <h1 id="share-title">Your share</h1>
+      <p class="big-amount" id="share-total"></p>
+
+      <table class="shares-table">
+        <tbody id="share-breakdown"></tbody>
+      </table>
+      <p class="muted" id="share-explainer">
+        Tax, service and discounts are split in proportion to what you had.
+      </p>
+
+      <div id="pay-area" class="pay-container">
+        <paypal-button id="paypal-button" type="pay" hidden></paypal-button>
+        <p class="muted pay-hint">
+          The money goes straight to <span id="host-name-2"></span>'s PayPal
+          account.
+        </p>
+      </div>
+    </section>
+
+    <section id="paid-section" class="card receipt" hidden>
+      <div class="receipt-icon" aria-hidden="true">✓</div>
+      <h2 id="paid-title">You're all square</h2>
+      <p id="paid-detail" class="muted"></p>
+    </section>
+
+    <alert-component hidden></alert-component>
+
+    <script src="pay.js"></script>
+    <script
+      async
+      src="https://www.sandbox.paypal.com/web-sdk/v6/core"
+      onload="onPayPalWebSdkLoaded()"
+    ></script>
+    <script async src="/client/shared/alert-component.js"></script>
+  </body>
+</html>

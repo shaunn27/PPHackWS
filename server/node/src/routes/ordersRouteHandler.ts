@@ -17,6 +17,7 @@ import type { Request, Response } from "express";
 import { client } from "../paypalServerSdkClient";
 import { getAllProducts, getProduct } from "../productCatalog";
 import { BillPaymentSchema } from "../billPayment";
+import { buildPayeeOrderBody } from "../payeeOrder";
 
 const ordersController = new OrdersController(client);
 
@@ -532,34 +533,14 @@ export async function createOrderForBillPaymentRouteHandler(
   const { payeeEmail, amount, currencyCode, billerName, reference } =
     BillPaymentSchema.parse(request.body ?? {});
 
-  const orderRequestBody = {
-    intent: CheckoutPaymentIntent.Capture,
-    purchaseUnits: [
-      {
-        payee: { emailAddress: payeeEmail },
-        description: `Bill payment to ${billerName}`.slice(0, 127),
-        // customId (not invoiceId) so the same bill can be paid again in demos
-        ...(reference && { customId: reference }),
-        amount: {
-          currencyCode,
-          value: amount,
-          breakdown: {
-            itemTotal: { currencyCode, value: amount },
-          },
-        },
-        items: [
-          {
-            name: (reference
-              ? `${billerName} - ${reference}`
-              : billerName
-            ).slice(0, 127),
-            quantity: "1",
-            unitAmount: { currencyCode, value: amount },
-          },
-        ],
-      },
-    ],
-  };
+  const orderRequestBody = buildPayeeOrderBody({
+    payeeEmail,
+    amount,
+    currencyCode,
+    description: `Bill payment to ${billerName}`,
+    itemName: reference ? `${billerName} - ${reference}` : billerName,
+    customId: reference,
+  });
 
   const { result, statusCode } = await ordersController.createOrder({
     body: orderRequestBody,

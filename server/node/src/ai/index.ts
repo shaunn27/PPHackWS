@@ -22,3 +22,4 @@ export function getBillExtractor(): BillExtractor {
 }
 
 export * from "./billSchema";
+export * from "./receiptSchema";

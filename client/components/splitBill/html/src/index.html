@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Split the Bill - AI receipt splitting with PayPal</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="/client/shared/styles.css" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="hero">
+      <h1>Split the Bill</h1>
+      <p class="lede">
+        You paid for everyone. Snap the receipt, tap who had what, and send each
+        friend a PayPal link for their exact share.
+      </p>
+    </header>
+
+    <ol class="steps" aria-label="Progress">
+      <li data-step="capture" class="active">1. Snap</li>
+      <li data-step="receipt">2. Check</li>
+      <li data-step="people">3. Split</li>
+      <li data-step="collect">4. Collect</li>
+    </ol>
+
+    <!-- Step 1: capture -->
+    <section id="capture-section" class="card">
+      <h2>Snap or upload the receipt</h2>
+      <label class="dropzone" id="dropzone">
+        <input
+          id="file-input"
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          capture="environment"
+        />
+        <span class="dropzone-icon" aria-hidden="true">🧾</span>
+        <span
+          ><strong>Take a photo</strong> or choose an image (JPEG, PNG,
+          WebP)</span
+        >
+        <span class="muted">You can also drag an image here</span>
+      </label>
+      <p class="muted samples-label">No receipt to hand? Try a sample:</p>
+      <div class="samples">
+        <button
+          type="button"
+          class="sample"
+          data-src="samples/lantern-noodle-house-receipt.svg"
+        >
+          <img src="samples/lantern-noodle-house-receipt.svg" alt="" />
+          <span
+            ><strong>Dinner for 3</strong> Shared dumplings, promo, service and
+            tax</span
+          >
+        </button>
+      </div>
+      <p class="muted">
+        Or
+        <button type="button" id="manual-entry" class="link-button">
+          type the receipt in yourself
+        </button>
+      </p>
+    </section>
+
+    <!-- Step 2: check the receipt -->
+    <section id="receipt-section" class="card" hidden>
+      <div class="review-layout">
+        <figure class="preview">
+          <img id="receipt-preview" alt="The receipt you uploaded" />
+          <figcaption class="muted">Your receipt</figcaption>
+        </figure>
+
+        <div>
+          <div id="extracting" class="extracting" hidden>
+            <div class="spinner" aria-hidden="true"></div>
+            <p>Reading every line with AI…</p>
+            <p class="muted">This usually takes a few seconds.</p>
+          </div>
+
+          <div id="receipt-form" hidden>
+            <h2>Check the receipt</h2>
+            <p class="muted">
+              Filled in by AI <span id="provider-label"></span>. Fix anything
+              that's wrong.
+            </p>
+            <ul id="receipt-warnings" class="warnings" hidden></ul>
+
+            <div class="fields">
+              <label class="field">Merchant <input id="merchant-name" /></label>
+              <label class="field">Date <input id="receipt-date" /></label>
+              <label class="field"
+                >Currency
+                <select id="currency">
+                  <option>USD</option>
+                  <option>EUR</option>
+                  <option>GBP</option>
+                  <option>AUD</option>
+                  <option>CAD</option>
+                  <option>SGD</option>
+                </select>
+              </label>
+            </div>
+
+            <div class="section-title">
+              <h3>Items</h3>
+              <button type="button" class="small-button" data-add="items">
+                + Item
+              </button>
+            </div>
+            <div id="items" class="lines"></div>
+
+            <div class="section-title">
+              <h3>Tax, service and tips</h3>
+              <button type="button" class="small-button" data-add="charges">
+                + Charge
+              </button>
+            </div>
+            <div id="charges" class="lines"></div>
+
+            <div class="section-title">
+              <h3>Discounts</h3>
+              <button type="button" class="small-button" data-add="discounts">
+                + Discount
+              </button>
+            </div>
+            <div id="discounts" class="lines"></div>
+
+            <div class="section-title">
+              <h3>Total paid</h3>
+              <input
+                id="total"
+                class="amount"
+                inputmode="decimal"
+                style="max-width: 8rem"
+              />
+            </div>
+
+            <div id="reconcile" class="reconcile"></div>
+
+            <div class="actions-row">
+              <button
+                type="button"
+                id="to-people"
+                class="primary-button"
+                disabled
+              >
+                Next: who was there?
+              </button>
+              <button type="button" class="link-button" data-restart>
+                ← Use a different receipt
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Step 3: people and assignment -->
+    <section id="people-section" class="card" hidden>
+      <h2>Who was there?</h2>
+      <div class="fields">
+        <label class="field"
+          >Your name <input id="host-name" placeholder="e.g. Alex"
+        /></label>
+        <label class="field"
+          >Your PayPal email (friends pay you here)
+          <input
+            id="host-email"
+            type="email"
+            autocomplete="email"
+            placeholder="you@example.com"
+        /></label>
+      </div>
+
+      <div class="section-title">
+        <h3>Friends</h3>
+        <button type="button" class="small-button" id="add-friend">
+          + Friend
+        </button>
+      </div>
+      <div id="friends" class="lines"></div>
+
+      <div class="section-title">
+        <h3>How to split</h3>
+        <div class="mode-toggle" role="group" aria-label="Split mode">
+          <button type="button" data-mode="itemized" class="selected">
+            By item
+          </button>
+          <button type="button" data-mode="equal">Equally</button>
+        </div>
+      </div>
+      <p id="mode-help" class="muted"></p>
+      <div id="assignments"></div>
+
+      <div class="section-title"><h3>Everyone's share</h3></div>
+      <p id="preview-error" class="form-error" role="alert"></p>
+      <table class="preview-table">
+        <tbody id="preview-body"></tbody>
+      </table>
+
+      <div class="actions-row">
+        <button type="button" id="create-split" class="primary-button" disabled>
+          Create PayPal pay links
+        </button>
+        <button type="button" id="back-to-receipt" class="link-button">
+          ← Back to the receipt
+        </button>
+      </div>
+    </section>
+
+    <!-- Step 4: collect -->
+    <section id="collect-section" class="card" hidden>
+      <h2 id="collect-title">Collect your money</h2>
+      <p class="muted" id="collect-subtitle"></p>
+      <div class="progress" aria-hidden="true">
+        <div id="progress-bar" class="progress-bar" style="width: 0"></div>
+      </div>
+      <p id="collect-summary"></p>
+      <table class="shares-table">
+        <tbody id="shares-body"></tbody>
+      </table>
+      <p class="muted">
+        This page updates by itself as friends pay. Bookmark it to check back
+        later.
+      </p>
+      <button type="button" class="link-button" data-restart>
+        Split another receipt
+      </button>
+    </section>
+
+    <alert-component hidden></alert-component>
+
+    <script src="app.js"></script>
+    <script async src="/client/shared/alert-component.js"></script>
+  </body>
+</html>

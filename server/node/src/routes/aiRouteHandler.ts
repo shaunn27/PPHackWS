@@ -3,6 +3,7 @@ import type { Request, Response } from "express";
 
 import { getBillExtractor } from "../ai";
 import { getBillWarnings, getBillPaymentMaxAmount } from "../billPayment";
+import { getReceiptWarnings } from "../split/receipt";
 
 const ALLOWED_MIME_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
 // 5 MB of image data is about 6.7 MB once base64-encoded
@@ -10,7 +11,8 @@ const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 
 const DATA_URL_PATTERN = /^data:(image\/[a-z]+);base64,([A-Za-z0-9+/]+=*)$/;
 
-const ExtractBillRequestSchema = z
+/** A base64 image data URL, checked for type and size. Shared by every AI route. */
+export const ImageRequestSchema = z
   .object({
     image: z
       .string()
@@ -43,7 +45,7 @@ export async function extractBillRouteHandler(
   request: Request,
   response: Response,
 ) {
-  const image = ExtractBillRequestSchema.parse(request.body ?? {});
+  const image = ImageRequestSchema.parse(request.body ?? {});
   const extractor = getBillExtractor();
   const bill = await extractor.extractBill(image);
 
@@ -51,6 +53,21 @@ export async function extractBillRouteHandler(
     bill,
     warnings: getBillWarnings(bill),
     limits: { maxAmount: getBillPaymentMaxAmount() },
+    provider: extractor.name,
+  });
+}
+
+export async function extractReceiptRouteHandler(
+  request: Request,
+  response: Response,
+) {
+  const image = ImageRequestSchema.parse(request.body ?? {});
+  const extractor = getBillExtractor();
+  const receipt = await extractor.extractReceipt(image);
+
+  response.status(200).json({
+    receipt,
+    warnings: getReceiptWarnings(receipt),
     provider: extractor.name,
   });
 }

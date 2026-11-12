@@ -184,7 +184,7 @@ describe("geminiBillExtractor", () => {
     mockFetch(200, geminiAnswer(JSON.stringify({ payeeEmail: "x" })));
 
     await expect(geminiBillExtractor.extractBill(image)).rejects.toThrow(
-      "did not match the bill schema",
+      "did not match the expected schema",
     );
   });
 

@@ -1,3 +1,5 @@
+import type { z } from "zod/v4";
+
 import { CustomApiError } from "../customApiEndpoints/customApiError";
 import {
   EXTRACTED_BILL_JSON_SCHEMA,
@@ -6,6 +8,11 @@ import {
   type BillExtractor,
   type BillImage,
 } from "./billSchema";
+import {
+  EXTRACTED_RECEIPT_JSON_SCHEMA,
+  ExtractedReceiptSchema,
+  RECEIPT_EXTRACTION_PROMPT,
+} from "./receiptSchema";
 
 const GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta";
 
@@ -103,105 +110,144 @@ async function callModel(
   };
 }
 
+type StructuredRequest<T> = {
+  image: BillImage;
+  prompt: string;
+  instruction: string;
+  jsonSchema: unknown;
+  zodSchema: z.ZodType<T>;
+};
+
+/**
+ * Sends an image to Gemini and returns JSON validated against `zodSchema`,
+ * with the model fallback and timeout from callModel. Shared by every
+ * extraction (bills, receipts) so they all fail the same, safe way.
+ */
+async function generateStructuredJson<T>({
+  image,
+  prompt,
+  instruction,
+  jsonSchema,
+  zodSchema,
+}: StructuredRequest<T>): Promise<T> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new CustomApiError({
+      message: "GEMINI_API_KEY is not set",
+      statusCode: 500,
+      result: {
+        error: "AI provider not configured",
+        errorDescription:
+          "Set GEMINI_API_KEY in the .env file (get one at https://aistudio.google.com), then restart the server",
+      },
+    });
+  }
+
+  const requestBody = JSON.stringify({
+    systemInstruction: { parts: [{ text: prompt }] },
+    contents: [
+      {
+        role: "user",
+        parts: [
+          { inlineData: { mimeType: image.mimeType, data: image.base64 } },
+          { text: instruction },
+        ],
+      },
+    ],
+    generationConfig: {
+      temperature: 0,
+      responseMimeType: "application/json",
+      responseSchema: jsonSchema,
+    },
+  });
+
+  let result: GeminiResponse | undefined;
+  let lastError: CustomApiError | undefined;
+  for (const model of getGeminiModels()) {
+    const attempt = await callModel(model, apiKey, requestBody);
+    if (attempt.ok) {
+      result = attempt.result;
+      break;
+    }
+    lastError = attempt.error;
+    if (!attempt.retryable) {
+      break;
+    }
+    console.warn(`${attempt.error.message}; trying the next model`);
+  }
+
+  if (!result) {
+    throw lastError;
+  }
+
+  const text = result.candidates?.[0]?.content?.parts
+    ?.map((part) => part.text ?? "")
+    .join("");
+
+  if (!text) {
+    const reason =
+      result.promptFeedback?.blockReason ??
+      result.candidates?.[0]?.finishReason ??
+      "empty response";
+    throw new CustomApiError({
+      message: `Gemini returned no content (${reason})`,
+      statusCode: 502,
+      result: {
+        error: "AI extraction failed",
+        errorDescription: `The model returned no content (${reason})`,
+      },
+    });
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    throw new CustomApiError({
+      message: "Gemini returned invalid JSON",
+      statusCode: 502,
+      result: {
+        error: "AI extraction failed",
+        errorDescription: "The model returned invalid JSON",
+      },
+    });
+  }
+
+  const validated = zodSchema.safeParse(parsed);
+  if (!validated.success) {
+    throw new CustomApiError({
+      message: "Gemini output did not match the expected schema",
+      statusCode: 502,
+      result: {
+        error: "AI extraction failed",
+        errorDescription:
+          "The model's answer did not match the expected format",
+      },
+    });
+  }
+  return validated.data;
+}
+
 export const geminiBillExtractor: BillExtractor = {
   name: "gemini",
 
-  async extractBill({ mimeType, base64 }: BillImage) {
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      throw new CustomApiError({
-        message: "GEMINI_API_KEY is not set",
-        statusCode: 500,
-        result: {
-          error: "AI provider not configured",
-          errorDescription:
-            "Set GEMINI_API_KEY in the .env file (get one at https://aistudio.google.com), then restart the server",
-        },
-      });
-    }
-
-    const requestBody = JSON.stringify({
-      systemInstruction: { parts: [{ text: EXTRACTION_PROMPT }] },
-      contents: [
-        {
-          role: "user",
-          parts: [
-            { inlineData: { mimeType, data: base64 } },
-            { text: "Extract the payment details from this document." },
-          ],
-        },
-      ],
-      generationConfig: {
-        temperature: 0,
-        responseMimeType: "application/json",
-        responseSchema: EXTRACTED_BILL_JSON_SCHEMA,
-      },
+  extractBill(image: BillImage) {
+    return generateStructuredJson({
+      image,
+      prompt: EXTRACTION_PROMPT,
+      instruction: "Extract the payment details from this document.",
+      jsonSchema: EXTRACTED_BILL_JSON_SCHEMA,
+      zodSchema: ExtractedBillSchema,
     });
+  },
 
-    let result: GeminiResponse | undefined;
-    let lastError: CustomApiError | undefined;
-    for (const model of getGeminiModels()) {
-      const attempt = await callModel(model, apiKey, requestBody);
-      if (attempt.ok) {
-        result = attempt.result;
-        break;
-      }
-      lastError = attempt.error;
-      if (!attempt.retryable) {
-        break;
-      }
-      console.warn(`${attempt.error.message}; trying the next model`);
-    }
-
-    if (!result) {
-      throw lastError;
-    }
-
-    const text = result.candidates?.[0]?.content?.parts
-      ?.map((part) => part.text ?? "")
-      .join("");
-
-    if (!text) {
-      const reason =
-        result.promptFeedback?.blockReason ??
-        result.candidates?.[0]?.finishReason ??
-        "empty response";
-      throw new CustomApiError({
-        message: `Gemini returned no content (${reason})`,
-        statusCode: 502,
-        result: {
-          error: "AI extraction failed",
-          errorDescription: `The model returned no content (${reason})`,
-        },
-      });
-    }
-
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(text);
-    } catch {
-      throw new CustomApiError({
-        message: "Gemini returned invalid JSON",
-        statusCode: 502,
-        result: {
-          error: "AI extraction failed",
-          errorDescription: "The model returned invalid JSON",
-        },
-      });
-    }
-
-    const validated = ExtractedBillSchema.safeParse(parsed);
-    if (!validated.success) {
-      throw new CustomApiError({
-        message: "Gemini output did not match the bill schema",
-        statusCode: 502,
-        result: {
-          error: "AI extraction failed",
-          errorDescription:
-            "The model's answer did not match the expected format",
-        },
-      });
-    }
-    return validated.data;
+  extractReceipt(image: BillImage) {
+    return generateStructuredJson({
+      image,
+      prompt: RECEIPT_EXTRACTION_PROMPT,
+      instruction: "Extract every line of this receipt.",
+      jsonSchema: EXTRACTED_RECEIPT_JSON_SCHEMA,
+      zodSchema: ExtractedReceiptSchema,
+    });
   },
 };

@@ -1,6 +1,17 @@
 import { Router } from "express";
 
-import { extractBillRouteHandler } from "./aiRouteHandler";
+import {
+  extractBillRouteHandler,
+  extractReceiptRouteHandler,
+} from "./aiRouteHandler";
+import {
+  previewSplitRouteHandler,
+  createSplitRouteHandler,
+  getSplitRouteHandler,
+  getPayViewRouteHandler,
+  createSplitOrderRouteHandler,
+  captureSplitOrderRouteHandler,
+} from "./splitRouteHandler";
 
 import {
   clientTokenRouteHandler,
@@ -88,6 +99,21 @@ router.post(
 
 // Snap & Pay: the larger JSON body limit for images is set in server.ts
 router.post("/ai/extract-bill", extractBillRouteHandler);
+
+// Split the Bill: the larger JSON body limit for images is set in server.ts
+router.post("/ai/extract-receipt", extractReceiptRouteHandler);
+router.post("/api/splits/preview", previewSplitRouteHandler);
+router.post("/api/splits", createSplitRouteHandler);
+router.get("/api/splits/:id", getSplitRouteHandler);
+router.get("/api/splits/:id/pay/:payToken", getPayViewRouteHandler);
+router.post(
+  "/api/splits/:id/pay/:payToken/create-order",
+  createSplitOrderRouteHandler,
+);
+router.post(
+  "/api/splits/:id/pay/:payToken/capture",
+  captureSplitOrderRouteHandler,
+);
 
 router.get("/paypal-api/checkout/orders/:orderId", getOrderRouteHandler);
 
