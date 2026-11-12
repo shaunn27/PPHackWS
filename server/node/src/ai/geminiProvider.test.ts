@@ -134,7 +134,7 @@ describe("geminiBillExtractor", () => {
     const promise = geminiBillExtractor.extractBill(image);
     await expect(promise).rejects.toBeInstanceOf(CustomApiError);
     await expect(promise).rejects.toMatchObject({ statusCode: 429 });
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenCalledTimes(getGeminiModels().length);
   });
 
   test("does not fall back on other errors", async () => {
@@ -160,14 +160,20 @@ describe("geminiBillExtractor", () => {
         errorDescription: expect.stringContaining("busy"),
       }),
     });
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenCalledTimes(getGeminiModels().length);
   });
 
   test("model list honours GEMINI_MODEL and GEMINI_FALLBACK_MODEL", () => {
     expect(getGeminiModels()).toEqual([
       "gemini-3.5-flash-lite",
       "gemini-3-flash-preview",
+      "gemini-3.1-flash-lite",
+      "gemini-3.5-flash",
     ]);
+
+    vi.stubEnv("GEMINI_FALLBACK_MODEL", " model-b , model-c,");
+    vi.stubEnv("GEMINI_MODEL", "model-a");
+    expect(getGeminiModels()).toEqual(["model-a", "model-b", "model-c"]);
 
     vi.stubEnv("GEMINI_MODEL", "model-a");
     vi.stubEnv("GEMINI_FALLBACK_MODEL", "model-b");

@@ -74,7 +74,7 @@ Try the **Tampered bill** sample to see this: its small print tells the AI to pa
 
 4. **Open** http://localhost:8080/client/components/snapAndPay/html/src/index.html (also linked from the home page under "AI Examples").
 
-5. **Pay.** Pick the Water bill sample, check the details, tick the box, click PayPal, and log in as your **personal** sandbox account. If you're already logged in to sandbox.paypal.com as a business account, log out first. Then log in to sandbox.paypal.com as the biller to see the payment arrive.
+5. **Pay.** Pick the Internet bill sample, check the details, tick the box, click PayPal, and log in as your **personal** sandbox account. If you're already logged in to sandbox.paypal.com as a business account, log out first. Then log in to sandbox.paypal.com as the biller to see the payment arrive.
 
 To try it from a phone camera, expose the server over HTTPS. The server opens an ngrok tunnel automatically when `NGROK_AUTHTOKEN` is set in `.env`.
 
@@ -84,7 +84,7 @@ To try it from a phone camera, expose the server over HTTPS. The server opens an
 |---|---|---|
 | `GEMINI_API_KEY` | (required) | Google AI Studio API key |
 | `GEMINI_MODEL` | `gemini-3.5-flash-lite` | Any Gemini model that accepts images |
-| `GEMINI_FALLBACK_MODEL` | `gemini-3-flash-preview` | Tried when the main model is overloaded, rate limited or slow. `none` disables it |
+| `GEMINI_FALLBACK_MODEL` | `gemini-3-flash-preview,gemini-3.1-flash-lite,gemini-3.5-flash` | Comma-separated models tried in order when the main one is overloaded, rate limited or slow. `none` disables fallbacks |
 | `AI_PROVIDER` | `gemini` | Which bill extractor to use (see below) |
 | `BILL_PAYMENT_MAX_AMOUNT` | `500` | Highest amount a single bill payment may be |
 
@@ -118,15 +118,15 @@ The AI layer is provider-agnostic: `server/node/src/ai/` defines a `BillExtracto
 - `server/node/src/server.ts`: an 8 MB body limit for image uploads only (other routes keep the 100 KB default).
 - `server/node/src/middleware/errorMiddleware.ts`: body-parser errors (413, malformed JSON) return their real status instead of 500.
 - `server/node/src/customApiEndpoints/authorization.ts`: the PayPal OAuth token is cached until shortly before it expires, instead of being fetched on every call.
-- `client/components/snapAndPay/`: the Snap & Pay page and three fictional sample bills.
+- `client/components/snapAndPay/`: the Snap & Pay page and fictional samples (bills, an email screenshot and a chat screenshot).
 - Tests for all of the above.
 
 ## Limitations
 
-- **The biller must be paid by PayPal email.** Bank account numbers, routing numbers and biller codes can't be paid through PayPal. The Electric bill sample shows how the app handles this: it warns that there's no PayPal payee and lets you enter one you trust.
+- **The biller must be paid by PayPal email.** Bank account numbers, routing numbers and biller codes can't be paid through PayPal. When a bill has no PayPal payee (try uploading `northwind-electric-bill.svg`), the app warns about it and lets you enter one you trust.
 - **Sandbox only.** Going live means swapping credentials and base URLs, plus PayPal's production review.
 - **The "new payee" memory is per browser** (localStorage). A real product would store payment history server-side per user.
-- **Free-tier Gemini** has rate limits (we hit 5 requests per minute per model), and popular models sometimes return "high demand" errors. If the main model is busy or doesn't answer within 20 seconds, the server switches to a fallback model. If that fails too, the page lets you fill in the form by hand. Google may use free-tier inputs to improve its products, so don't upload real bills with personal data on the free tier.
+- **Free-tier Gemini** has rate limits (we hit 5 requests per minute per model), and popular models sometimes return "high demand" errors. If a model is busy or doesn't answer within 20 seconds, the server moves on to the next of several fallback models (busy models fail in a second or two, so this is quick), and stops trying after 35 seconds. If every model fails, the page lets you fill in the form by hand. Google may use free-tier inputs to improve its products, so don't upload real bills with personal data on the free tier.
 - **Currencies with no decimal places** (e.g. JPY) aren't supported yet.
 
 ## Sample bills
@@ -135,11 +135,13 @@ In `client/components/snapAndPay/html/src/samples/`:
 
 | File | What it shows |
 |---|---|
-| `greenleaf-water-bill.svg` | A clean bill payable by PayPal (one-click sample) |
-| `northwind-electric-bill.svg` | Bank transfer only, no PayPal payee (one-click sample) |
+| `tutoring-email-invoice.svg` / `.png` | **Email screenshot** (one-click sample): a tutoring invoice. The sender's billing@ address isn't the PayPal address, and there's a discount line, so the AI must find the PayPal email and the final total ($150.00). |
+| `yoga-chat-request.svg` / `.png` | **Chat screenshot** (one-click sample): a yoga teacher asks to be paid. The chat mentions last month's $40.00 and this month's $48.00, so the AI must pick the current amount. |
 | `tampered-water-bill.svg` | Small print telling the AI to pay a different address (one-click sample) |
+| `greenleaf-water-bill.svg` | A clean bill payable by PayPal (upload it to try) |
+| `northwind-electric-bill.svg` | Bank transfer only, no PayPal payee (upload it to try) |
 | `brightwave-internet-bill.svg` / `.png` | An internet bill (one-click sample, or upload the PNG through the file picker, or photograph it on another screen). It lists two emails, so it also tests that the AI picks the one labelled for PayPal. |
 
-Tested against the live Gemini API, all four extract correctly in about 2–12 seconds with `gemini-3.5-flash-lite`. The model refused the tampered bill's injected instruction and flagged it. The same held for 3.5 Flash, 3 Flash Preview and 3.1 Flash-Lite.
+Tested against the live Gemini API, every sample extracts correctly in about 1–12 seconds, including the email ($150.00, PayPal address not the sender's) and the chat ($48.00, not last month's $40.00). The model refused the tampered bill's injected instruction and flagged it. The same held for 3.5 Flash, 3 Flash Preview and 3.1 Flash-Lite.
 
-All companies, people and addresses on the sample bills are fictional. Email domains use the reserved `.example` TLD, except the sandbox biller account.
+All companies, people and addresses on the samples are fictional. The email and chat screenshots use a generic layout, not any real app's design or branding. Email domains use the reserved `.example` TLD, except the sandbox biller account.

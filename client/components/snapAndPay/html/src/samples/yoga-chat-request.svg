@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="800" viewBox="0 0 600 800" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif">
+  <!-- Fictional sample for the Snap & Pay demo: a screenshot of a generic
+       chat app (no real app's branding). Not a real person or business. -->
+  <rect width="600" height="800" fill="#f2f3f5"/>
+
+  <!-- status bar -->
+  <rect width="600" height="44" fill="#ffffff"/>
+  <text x="32" y="29" font-size="16" font-weight="600" fill="#111">9:41</text>
+  <rect x="500" y="18" width="18" height="10" rx="2" fill="#111"/>
+  <rect x="524" y="16" width="44" height="14" rx="4" fill="none" stroke="#111" stroke-width="1.5"/>
+  <rect x="527" y="19" width="32" height="8" rx="2" fill="#111"/>
+
+  <!-- conversation header -->
+  <rect y="44" width="600" height="72" fill="#ffffff"/>
+  <line x1="0" y1="116" x2="600" y2="116" stroke="#dde1e6"/>
+  <path d="M28 66 L18 80 L28 94" fill="none" stroke="#3b6fd8" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="72" cy="80" r="22" fill="#e9a23b"/>
+  <text x="72" y="87" font-size="20" font-weight="700" fill="#fff" text-anchor="middle">M</text>
+  <text x="106" y="76" font-size="18" font-weight="700" fill="#111">Maya Chen</text>
+  <text x="106" y="98" font-size="13" fill="#6b7280">Sunrise Yoga Studio</text>
+
+  <!-- date chip -->
+  <rect x="262" y="134" width="76" height="24" rx="12" fill="#e3e6ea"/>
+  <text x="300" y="151" font-size="12" fill="#555" text-anchor="middle">Today</text>
+
+  <!-- Maya -->
+  <rect x="20" y="174" width="380" height="58" rx="16" fill="#ffffff"/>
+  <text x="38" y="199" font-size="15" fill="#111">Hi Alex! Hope you enjoyed the class</text>
+  <text x="38" y="220" font-size="15" fill="#111">this morning</text>
+  <text x="388" y="224" font-size="11" fill="#8a8f98" text-anchor="end">9:02</text>
+
+  <!-- me -->
+  <rect x="236" y="246" width="344" height="58" rx="16" fill="#3b6fd8"/>
+  <text x="254" y="271" font-size="15" fill="#fff">Loved it! How much do I owe for</text>
+  <text x="254" y="292" font-size="15" fill="#fff">November?</text>
+  <text x="568" y="296" font-size="11" fill="#d6e2ff" text-anchor="end">9:05 ✓✓</text>
+
+  <!-- Maya -->
+  <rect x="20" y="318" width="420" height="58" rx="16" fill="#ffffff"/>
+  <text x="38" y="343" font-size="15" fill="#111">October was $40.00, but November is the</text>
+  <text x="38" y="364" font-size="15" fill="#111">full monthly pass, so it's $48.00</text>
+  <text x="428" y="368" font-size="11" fill="#8a8f98" text-anchor="end">9:07</text>
+
+  <rect x="20" y="386" width="420" height="58" rx="16" fill="#ffffff"/>
+  <text x="38" y="411" font-size="15" fill="#111">You can PayPal it to</text>
+  <text x="38" y="432" font-size="15" fill="#1d4ed8">sb-acuw253851754@business.example.com</text>
+
+  <rect x="20" y="454" width="420" height="58" rx="16" fill="#ffffff"/>
+  <text x="38" y="479" font-size="15" fill="#111">Please put YOGA-NOV-117 as the</text>
+  <text x="38" y="500" font-size="15" fill="#111">reference. Thank you!</text>
+  <text x="428" y="504" font-size="11" fill="#8a8f98" text-anchor="end">9:08</text>
+
+  <!-- me -->
+  <rect x="368" y="526" width="212" height="40" rx="16" fill="#3b6fd8"/>
+  <text x="386" y="551" font-size="15" fill="#fff">Perfect, paying now</text>
+  <text x="568" y="580" font-size="11" fill="#8a8f98" text-anchor="end">9:10 ✓✓</text>
+
+  <!-- composer -->
+  <rect y="716" width="600" height="84" fill="#ffffff"/>
+  <line x1="0" y1="716" x2="600" y2="716" stroke="#dde1e6"/>
+  <rect x="20" y="734" width="500" height="44" rx="22" fill="#f2f3f5"/>
+  <text x="44" y="762" font-size="15" fill="#9aa0a6">Message</text>
+  <circle cx="556" cy="756" r="22" fill="#3b6fd8"/>
+  <path d="M547 756 L566 756 M558 748 L566 756 L558 764" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

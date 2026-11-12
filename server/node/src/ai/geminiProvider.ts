@@ -27,16 +27,31 @@ const GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta";
  * are per model, so switching also sidesteps a 429.
  */
 const DEFAULT_MODEL = "gemini-3.5-flash-lite";
-const DEFAULT_FALLBACK_MODEL = "gemini-3-flash-preview";
+// several fallbacks: on the free tier, two models were sometimes overloaded
+// at the same moment. A busy model answers 503 within a second or two, so
+// trying more of them is cheap.
+const DEFAULT_FALLBACK_MODELS =
+  "gemini-3-flash-preview,gemini-3.1-flash-lite,gemini-3.5-flash";
 const REQUEST_TIMEOUT_MS = 20_000;
+// stop starting new attempts after this, so the user isn't left waiting
+const TOTAL_BUDGET_MS = 35_000;
 
-/** The models to try, in order. GEMINI_FALLBACK_MODEL=none disables the fallback. */
+/**
+ * The models to try, in order: GEMINI_MODEL, then the comma-separated
+ * GEMINI_FALLBACK_MODEL list. GEMINI_FALLBACK_MODEL=none disables fallbacks.
+ */
 export function getGeminiModels() {
   const primary = process.env.GEMINI_MODEL || DEFAULT_MODEL;
-  const fallback = process.env.GEMINI_FALLBACK_MODEL || DEFAULT_FALLBACK_MODEL;
-  return fallback === "none" || fallback === primary
-    ? [primary]
-    : [primary, fallback];
+  const fallbackSetting =
+    process.env.GEMINI_FALLBACK_MODEL || DEFAULT_FALLBACK_MODELS;
+  if (fallbackSetting === "none") {
+    return [primary];
+  }
+  const fallbacks = fallbackSetting
+    .split(",")
+    .map((model) => model.trim())
+    .filter(Boolean);
+  return [...new Set([primary, ...fallbacks])];
 }
 
 type GeminiResponse = {
@@ -163,7 +178,11 @@ async function generateStructuredJson<T>({
 
   let result: GeminiResponse | undefined;
   let lastError: CustomApiError | undefined;
+  const startedAt = Date.now();
   for (const model of getGeminiModels()) {
+    if (lastError && Date.now() - startedAt > TOTAL_BUDGET_MS) {
+      break;
+    }
     const attempt = await callModel(model, apiKey, requestBody);
     if (attempt.ok) {
       result = attempt.result;
