@@ -218,8 +218,11 @@ async function extractBill(dataUrl) {
   const data = await response.json();
 
   if (!response.ok) {
+    const reason = String(
+      data.errorDescription ?? data.error ?? response.status,
+    ).replace(/[.\s]+$/, "");
     throw new Error(
-      `AI couldn't read the bill: ${data.errorDescription ?? data.error ?? response.status}. You can fill in the details yourself.`,
+      `AI couldn't read the bill: ${reason}. You can fill in the details yourself.`,
     );
   }
   return data;

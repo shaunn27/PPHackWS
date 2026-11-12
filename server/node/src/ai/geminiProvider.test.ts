@@ -1,7 +1,7 @@
 /* eslint-disable unicorn/no-null -- the model returns JSON, where missing fields are null */
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
-import { geminiBillExtractor } from "./geminiProvider";
+import { geminiBillExtractor, getGeminiModels } from "./geminiProvider";
 import { CustomApiError } from "../customApiEndpoints/customApiError";
 
 const image = { mimeType: "image/png", base64: "iVBORw0KGgo=" };
@@ -35,8 +35,9 @@ function geminiAnswer(text: string) {
 describe("geminiBillExtractor", () => {
   beforeEach(() => {
     vi.stubEnv("GEMINI_API_KEY", "fake-gemini-key");
-    // empty = use the default model
+    // empty = use the default models
     vi.stubEnv("GEMINI_MODEL", "");
+    vi.stubEnv("GEMINI_FALLBACK_MODEL", "");
   });
 
   afterEach(() => {
@@ -51,7 +52,7 @@ describe("geminiBillExtractor", () => {
     );
 
     const [url, init] = fetchMock.mock.calls[0];
-    expect(url).toContain("/models/gemini-3.5-flash:generateContent");
+    expect(url).toContain("/models/gemini-3.5-flash-lite:generateContent");
     expect(init.headers["x-goog-api-key"]).toBe("fake-gemini-key");
     const body = JSON.parse(init.body);
     expect(body.contents[0].parts[0].inlineData).toEqual({
@@ -81,8 +82,7 @@ describe("geminiBillExtractor", () => {
     );
   });
 
-  test("retries once when the model is overloaded, then succeeds", async () => {
-    vi.useFakeTimers();
+  test("falls back to the second model when the first is overloaded", async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce({
@@ -99,33 +99,45 @@ describe("geminiBillExtractor", () => {
       });
     vi.stubGlobal("fetch", fetchMock);
 
-    const promise = geminiBillExtractor.extractBill(image);
-    await vi.runAllTimersAsync();
-
-    await expect(promise).resolves.toEqual(extracted);
+    await expect(geminiBillExtractor.extractBill(image)).resolves.toEqual(
+      extracted,
+    );
     expect(fetchMock).toHaveBeenCalledTimes(2);
-    vi.useRealTimers();
+    expect(fetchMock.mock.calls[0][0]).toContain("/gemini-3.5-flash-lite:");
+    expect(fetchMock.mock.calls[1][0]).toContain("/gemini-3-flash-preview:");
   });
 
-  test("passes a rate-limit error through as 429 after retrying", async () => {
-    vi.useFakeTimers();
+  test("falls back to the second model when the first times out", async () => {
+    const timeout = new Error("The operation timed out");
+    timeout.name = "TimeoutError";
+    const fetchMock = vi
+      .fn()
+      .mockRejectedValueOnce(timeout)
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => geminiAnswer(JSON.stringify(extracted)),
+      });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(geminiBillExtractor.extractBill(image)).resolves.toEqual(
+      extracted,
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  test("passes a rate-limit error through as 429 when every model is limited", async () => {
     const fetchMock = mockFetch(429, {
       error: { code: 429, message: "Quota exceeded", status: "EXHAUSTED" },
     });
 
     const promise = geminiBillExtractor.extractBill(image);
-    const assertion = expect(promise).rejects.toMatchObject({
-      statusCode: 429,
-    });
-    await vi.runAllTimersAsync();
-
-    await assertion;
     await expect(promise).rejects.toBeInstanceOf(CustomApiError);
+    await expect(promise).rejects.toMatchObject({ statusCode: 429 });
     expect(fetchMock).toHaveBeenCalledTimes(2);
-    vi.useRealTimers();
   });
 
-  test("does not retry other errors", async () => {
+  test("does not fall back on other errors", async () => {
     const fetchMock = mockFetch(400, {
       error: { code: 400, message: "Bad image", status: "INVALID_ARGUMENT" },
     });
@@ -136,17 +148,36 @@ describe("geminiBillExtractor", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  test("turns a timeout into a 504 with a helpful message", async () => {
+  test("turns a timeout on every model into a 504 with a helpful message", async () => {
     const timeout = new Error("The operation timed out");
     timeout.name = "TimeoutError";
-    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(timeout));
+    const fetchMock = vi.fn().mockRejectedValue(timeout);
+    vi.stubGlobal("fetch", fetchMock);
 
     await expect(geminiBillExtractor.extractBill(image)).rejects.toMatchObject({
       statusCode: 504,
       result: expect.objectContaining({
-        errorDescription: expect.stringContaining("didn't respond"),
+        errorDescription: expect.stringContaining("busy"),
       }),
     });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  test("model list honours GEMINI_MODEL and GEMINI_FALLBACK_MODEL", () => {
+    expect(getGeminiModels()).toEqual([
+      "gemini-3.5-flash-lite",
+      "gemini-3-flash-preview",
+    ]);
+
+    vi.stubEnv("GEMINI_MODEL", "model-a");
+    vi.stubEnv("GEMINI_FALLBACK_MODEL", "model-b");
+    expect(getGeminiModels()).toEqual(["model-a", "model-b"]);
+
+    vi.stubEnv("GEMINI_FALLBACK_MODEL", "none");
+    expect(getGeminiModels()).toEqual(["model-a"]);
+
+    vi.stubEnv("GEMINI_FALLBACK_MODEL", "model-a");
+    expect(getGeminiModels()).toEqual(["model-a"]);
   });
 
   test("rejects an answer that doesn't match the schema", async () => {

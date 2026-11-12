@@ -8,35 +8,28 @@ import {
 } from "./billSchema";
 
 const GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta";
-// gemini-2.5-flash is no longer available to new API keys; 3.5 Flash was
-// the fastest reliable model in testing (about 5-8s per bill)
-const DEFAULT_MODEL = "gemini-3.5-flash";
-const REQUEST_TIMEOUT_MS = 45_000;
-const MAX_ATTEMPTS = 2;
-const RETRY_DELAY_MS = 2000;
 
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+/*
+ * Model choice, from live testing on a free-tier key (November 2026):
+ * - gemini-2.5-flash is no longer available to new API keys.
+ * - gemini-3.5-flash was often overloaded (503) or slow (it "thinks" first).
+ * - gemini-3.5-flash-lite answered in about 2-7s, read every sample bill
+ *   correctly and refused the tampered bill's injected instruction.
+ * When the primary model is busy, rate limited or slow, we switch to a
+ * fallback model rather than retrying the busy one. Free-tier rate limits
+ * are per model, so switching also sidesteps a 429.
+ */
+const DEFAULT_MODEL = "gemini-3.5-flash-lite";
+const DEFAULT_FALLBACK_MODEL = "gemini-3-flash-preview";
+const REQUEST_TIMEOUT_MS = 20_000;
 
-/** A slow or stuck model must not leave the user staring at a spinner forever. */
-async function fetchWithTimeout(url: string, init: RequestInit) {
-  try {
-    return await fetch(url, {
-      ...init,
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-    });
-  } catch (error) {
-    const timedOut = error instanceof Error && error.name === "TimeoutError";
-    throw new CustomApiError({
-      message: timedOut ? "Gemini request timed out" : "Gemini request failed",
-      statusCode: timedOut ? 504 : 502,
-      result: {
-        error: "AI extraction failed",
-        errorDescription: timedOut
-          ? `The AI model didn't respond within ${REQUEST_TIMEOUT_MS / 1000} seconds. Try again, or fill in the details yourself.`
-          : "Couldn't reach the AI model. Check your internet connection.",
-      },
-    });
-  }
+/** The models to try, in order. GEMINI_FALLBACK_MODEL=none disables the fallback. */
+export function getGeminiModels() {
+  const primary = process.env.GEMINI_MODEL || DEFAULT_MODEL;
+  const fallback = process.env.GEMINI_FALLBACK_MODEL || DEFAULT_FALLBACK_MODEL;
+  return fallback === "none" || fallback === primary
+    ? [primary]
+    : [primary, fallback];
 }
 
 type GeminiResponse = {
@@ -47,6 +40,68 @@ type GeminiResponse = {
   promptFeedback?: { blockReason?: string };
   error?: { code: number; message: string; status: string };
 };
+
+type ModelAttempt =
+  | { ok: true; result: GeminiResponse }
+  | { ok: false; retryable: boolean; error: CustomApiError };
+
+async function callModel(
+  model: string,
+  apiKey: string,
+  requestBody: string,
+): Promise<ModelAttempt> {
+  let response: Response;
+  try {
+    response = await fetch(
+      `${GEMINI_BASE_URL}/models/${encodeURIComponent(model)}:generateContent`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-goog-api-key": apiKey,
+        },
+        body: requestBody,
+        // a slow or stuck model must not leave the user staring at a spinner
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      },
+    );
+  } catch (error) {
+    const timedOut = error instanceof Error && error.name === "TimeoutError";
+    return {
+      ok: false,
+      retryable: timedOut,
+      error: new CustomApiError({
+        message: timedOut
+          ? `Gemini model ${model} timed out`
+          : "Gemini request failed",
+        statusCode: timedOut ? 504 : 502,
+        result: {
+          error: "AI extraction failed",
+          errorDescription: timedOut
+            ? "The AI model is busy and didn't respond in time. Try again in a moment"
+            : "Couldn't reach the AI model. Check your internet connection",
+        },
+      }),
+    };
+  }
+
+  const result = (await response.json()) as GeminiResponse;
+  if (response.ok) {
+    return { ok: true, result };
+  }
+
+  const message = result.error?.message ?? "Gemini request failed";
+  return {
+    ok: false,
+    // 503 = model overloaded, 429 = rate limit (per model on the free tier)
+    retryable: response.status === 429 || response.status === 503,
+    error: new CustomApiError({
+      message,
+      statusCode: response.status === 429 ? 429 : 502,
+      result: { error: "AI extraction failed", errorDescription: message },
+    }),
+  };
+}
 
 export const geminiBillExtractor: BillExtractor = {
   name: "gemini",
@@ -60,11 +115,11 @@ export const geminiBillExtractor: BillExtractor = {
         result: {
           error: "AI provider not configured",
           errorDescription:
-            "Set GEMINI_API_KEY in the .env file (get one at https://aistudio.google.com).",
+            "Set GEMINI_API_KEY in the .env file (get one at https://aistudio.google.com), then restart the server",
         },
       });
     }
-    const model = process.env.GEMINI_MODEL || DEFAULT_MODEL;
+
     const requestBody = JSON.stringify({
       systemInstruction: { parts: [{ text: EXTRACTION_PROMPT }] },
       contents: [
@@ -83,39 +138,23 @@ export const geminiBillExtractor: BillExtractor = {
       },
     });
 
-    // Retry once when the model is overloaded (503) or rate limited (429).
-    let response: Response | undefined;
-    let result: GeminiResponse = {};
-    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-      response = await fetchWithTimeout(
-        `${GEMINI_BASE_URL}/models/${encodeURIComponent(model)}:generateContent`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "x-goog-api-key": apiKey,
-          },
-          body: requestBody,
-        },
-      );
-      result = (await response.json()) as GeminiResponse;
-
-      const retryable = response.status === 429 || response.status === 503;
-      if (!retryable || attempt === MAX_ATTEMPTS) {
+    let result: GeminiResponse | undefined;
+    let lastError: CustomApiError | undefined;
+    for (const model of getGeminiModels()) {
+      const attempt = await callModel(model, apiKey, requestBody);
+      if (attempt.ok) {
+        result = attempt.result;
         break;
       }
-      await sleep(RETRY_DELAY_MS);
+      lastError = attempt.error;
+      if (!attempt.retryable) {
+        break;
+      }
+      console.warn(`${attempt.error.message}; trying the next model`);
     }
 
-    if (!response?.ok) {
-      throw new CustomApiError({
-        message: result.error?.message ?? "Gemini request failed",
-        statusCode: response?.status === 429 ? 429 : 502,
-        result: {
-          error: "AI extraction failed",
-          errorDescription: result.error?.message ?? "Gemini request failed",
-        },
-      });
+    if (!result) {
+      throw lastError;
     }
 
     const text = result.candidates?.[0]?.content?.parts
@@ -132,7 +171,7 @@ export const geminiBillExtractor: BillExtractor = {
         statusCode: 502,
         result: {
           error: "AI extraction failed",
-          errorDescription: `The model returned no content (${reason}).`,
+          errorDescription: `The model returned no content (${reason})`,
         },
       });
     }
@@ -146,7 +185,7 @@ export const geminiBillExtractor: BillExtractor = {
         statusCode: 502,
         result: {
           error: "AI extraction failed",
-          errorDescription: "The model returned invalid JSON.",
+          errorDescription: "The model returned invalid JSON",
         },
       });
     }
@@ -159,7 +198,7 @@ export const geminiBillExtractor: BillExtractor = {
         result: {
           error: "AI extraction failed",
           errorDescription:
-            "The model's answer did not match the expected format.",
+            "The model's answer did not match the expected format",
         },
       });
     }

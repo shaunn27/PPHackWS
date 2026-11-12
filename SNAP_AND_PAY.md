@@ -83,7 +83,8 @@ To try it from a phone camera, expose the server over HTTPS. The server opens an
 | Variable | Default | Purpose |
 |---|---|---|
 | `GEMINI_API_KEY` | (required) | Google AI Studio API key |
-| `GEMINI_MODEL` | `gemini-3.5-flash` | Any Gemini model that accepts images |
+| `GEMINI_MODEL` | `gemini-3.5-flash-lite` | Any Gemini model that accepts images |
+| `GEMINI_FALLBACK_MODEL` | `gemini-3-flash-preview` | Tried when the main model is overloaded, rate limited or slow. `none` disables it |
 | `AI_PROVIDER` | `gemini` | Which bill extractor to use (see below) |
 | `BILL_PAYMENT_MAX_AMOUNT` | `500` | Highest amount a single bill payment may be |
 
@@ -91,7 +92,7 @@ To try it from a phone camera, expose the server over HTTPS. The server opens an
 
 ```bash
 cd server/node
-npm test        # 39 tests, including the AI extraction and bill-payment routes
+npm test        # 41 tests, including the AI extraction and bill-payment routes
 npm run lint    # ESLint + TypeScript
 ```
 
@@ -125,7 +126,7 @@ The AI layer is provider-agnostic: `server/node/src/ai/` defines a `BillExtracto
 - **The biller must be paid by PayPal email.** Bank account numbers, routing numbers and biller codes can't be paid through PayPal. The Electric bill sample shows how the app handles this: it warns that there's no PayPal payee and lets you enter one you trust.
 - **Sandbox only.** Going live means swapping credentials and base URLs, plus PayPal's production review.
 - **The "new payee" memory is per browser** (localStorage). A real product would store payment history server-side per user.
-- **Free-tier Gemini** has rate limits (we hit 5 requests per minute per model), and popular models sometimes return "high demand" errors. The server retries once and times out after 45 seconds, and the page then lets you fill in the form by hand. Google may use free-tier inputs to improve its products, so don't upload real bills with personal data on the free tier.
+- **Free-tier Gemini** has rate limits (we hit 5 requests per minute per model), and popular models sometimes return "high demand" errors. If the main model is busy or doesn't answer within 20 seconds, the server switches to a fallback model. If that fails too, the page lets you fill in the form by hand. Google may use free-tier inputs to improve its products, so don't upload real bills with personal data on the free tier.
 - **Currencies with no decimal places** (e.g. JPY) aren't supported yet.
 
 ## Sample bills
@@ -139,6 +140,6 @@ In `client/components/snapAndPay/html/src/samples/`:
 | `tampered-water-bill.svg` | Small print telling the AI to pay a different address (one-click sample) |
 | `brightwave-internet-bill.png` | A bill to **upload** through the file picker, or to open on another screen and photograph with a phone. It lists two emails, so it also tests that the AI picks the one labelled for PayPal. |
 
-Tested against the live Gemini API (`gemini-3.5-flash`), all four extract correctly. The model refused the tampered bill's injected instruction and flagged it (the same held for 3 Flash Preview, 3.5 Flash-Lite and 3.1 Flash-Lite).
+Tested against the live Gemini API, all four extract correctly in about 2–12 seconds with `gemini-3.5-flash-lite`. The model refused the tampered bill's injected instruction and flagged it. The same held for 3.5 Flash, 3 Flash Preview and 3.1 Flash-Lite.
 
 All companies, people and addresses on the sample bills are fictional. Email domains use the reserved `.example` TLD, except the sandbox biller account.
