@@ -21,7 +21,7 @@ It's tedious, error-prone and awkward, so people round, guess, or never get paid
 1. **Snap.** Photograph the receipt or upload it. Gemini vision reads **every line**: items, subtotal, tax, service charge, tip, discounts and total.
 2. **Check.** The lines prefill an editable receipt. The page shows live whether items + charges − discounts add up to the total, and blocks splitting until they do.
 3. **Split.** Add your friends' names and tap who had each item. Tap several people for something you shared, or switch to an equal split. Everyone's share updates live, calculated on the server.
-4. **Collect.** Each friend gets a pay link to copy, share on WhatsApp or open. The link shows their items and their share of tax and discounts, and has a PayPal button. The money goes **directly to the host's PayPal account**. The host's page updates by itself as each friend pays: "$21.00 of $48.28 collected".
+4. **Collect.** Each friend gets a pay link. **Share…** opens the phone's own share sheet, so you pick the friend from your real contacts in WhatsApp, Messages or any app. Copy link and WhatsApp work everywhere too. Your name and PayPal email are remembered on your device, so the next split is quicker. The link shows their items and their share of tax and discounts, and has a PayPal button. The money goes **directly to the host's PayPal account**. The host's page updates by itself as each friend pays: "$21.00 of $48.28 collected".
 5. **Paid another way?** Not everyone pays back with PayPal. A friend who paid in cash, by bank transfer or with another app taps **"I've paid"** on their link, picks how, and can add a note. The host sees **"says paid"** and taps **Confirm received** or **Not received**. A claim never counts as collected until the host confirms it. The host can also **Mark as paid** someone who handed over cash without opening their link. The total shows where the money came from: "$32.00 collected ($21.00 via PayPal, $11.00 confirmed by you)".
 
 ```
@@ -106,6 +106,8 @@ Split sessions are saved to `server/node/data/splits.json` (gitignored), so they
 
 - **Storage is a JSON file**, not a database, and there are no user accounts. Anyone with the host link can see the dashboard.
 - **Payments made outside PayPal are only as reliable as the host's confirmation.** The app records who confirmed what and when, but can't verify cash or bank transfers.
+- **Friends are added by name, not from PayPal.** PayPal doesn't let third-party apps read a user's PayPal contacts, so links are shared through the phone's share sheet instead.
+- **The host types their PayPal email once** (then it's remembered on their device). The natural next step is "Log in with PayPal", which would fill it in with a verified account and prove the payee really is the host.
 - **No push notifications or SMS.** The host shares links by copy or WhatsApp, and "reminders" mean sharing again.
 - **Splits are itemized or equal.** Custom amounts and percentages aren't built yet.
 - **Friends pay with PayPal.** A friend without PayPal can use PayPal's guest card checkout where it's available.

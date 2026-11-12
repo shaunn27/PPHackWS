@@ -391,7 +391,33 @@ function updateReconcile() {
   $("#to-people").disabled = !ok;
 }
 
+const HOST_STORAGE_KEY = "splitBill.host";
+
+/** Your name and PayPal email are remembered on this device for next time. */
+function loadRememberedHost() {
+  try {
+    return JSON.parse(localStorage.getItem(HOST_STORAGE_KEY)) ?? {};
+  } catch {
+    return {};
+  }
+}
+
+function rememberHost(name, email) {
+  try {
+    localStorage.setItem(HOST_STORAGE_KEY, JSON.stringify({ name, email }));
+  } catch {
+    // storage unavailable (e.g. private browsing): just don't remember
+  }
+}
+
 $("#to-people").addEventListener("click", () => {
+  const remembered = loadRememberedHost();
+  if (!$("#host-name").value && remembered.name) {
+    $("#host-name").value = remembered.name;
+  }
+  if (!$("#host-email").value && remembered.email) {
+    $("#host-email").value = remembered.email;
+  }
   if (state.friends.length === 0) addFriend();
   if (state.friends.length === 1) addFriend();
   showStep("people");
@@ -655,6 +681,7 @@ $("#create-split").addEventListener("click", async () => {
   button.disabled = true;
   try {
     const split = await postJson("/api/splits", splitRequestBody());
+    rememberHost($("#host-name").value.trim(), $("#host-email").value.trim());
     history.replaceState(null, "", split.hostPath);
     showDashboard(split);
     startPolling(split.id, split.hostToken);
@@ -717,7 +744,7 @@ function showDashboard(split) {
 function shareRow(split, participant, currency) {
   const payUrl =
     participant.payPath && new URL(participant.payPath, location.origin).href;
-  const message = `Hi ${participant.name}! Your share of ${split.merchantName} is ${money(participant.total, currency)}. Pay me back with PayPal: ${payUrl}`;
+  const message = `Hi ${participant.name}! Your share of ${split.merchantName} is ${money(participant.total, currency)}. Pay me back here (PayPal, or tell me if you paid another way): ${payUrl}`;
   const claim = participant.claim;
   const statusLabel = {
     host: participant.isHost ? "you" : "nothing owed",
@@ -766,6 +793,28 @@ function shareRow(split, participant, currency) {
 
       participant.status === "pending" &&
         el("div", { className: "share-actions" }, [
+          // the phone's own share sheet: choose the friend in WhatsApp,
+          // Messages, etc. from your real contacts (feature-detected)
+          typeof navigator.share === "function" &&
+            el("button", {
+              type: "button",
+              className: "small-button confirm-button",
+              text: "Share…",
+              onclick: async () => {
+                try {
+                  await navigator.share({
+                    title: `Your share of ${split.merchantName}`,
+                    text: message.replace(` ${payUrl}`, ""),
+                    url: payUrl,
+                  });
+                } catch (error) {
+                  // AbortError = the host closed the share sheet: not a problem
+                  if (error.name !== "AbortError") {
+                    renderAlert({ type: "danger", message: error.message });
+                  }
+                }
+              },
+            }),
           el("button", {
             type: "button",
             className: "small-button",
